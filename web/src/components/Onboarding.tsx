@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { detectLanguage, LANGUAGES } from "../lib/languages";
+import { BabylMark } from "./BabylLogo";
 
 export interface Profile {
   nickname: string;
@@ -27,6 +28,7 @@ export function Onboarding({ roomId, onEnter }: Props) {
   return (
     <main className="onboarding">
       <header className="brand">
+        <BabylMark size={64} className="brand-mark" />
         <h1>babyl</h1>
         <p>Traduzione simultanea. Zero download, zero account.</p>
       </header>
