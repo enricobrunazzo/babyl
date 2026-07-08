@@ -7,6 +7,9 @@ import { RoomManager } from "./rooms.ts";
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_NICKNAME_LENGTH = 40;
 const MAX_ROOM_LENGTH = 64;
+// Heartbeat: i client spariti senza FIN (rete mobile, telefono bloccato)
+// vengono terminati, liberando presenza ed eventuale lock PTT.
+const HEARTBEAT_INTERVAL_MS = 30_000;
 
 const rooms = new RoomManager();
 
@@ -30,6 +33,19 @@ interface Session {
 wss.on("connection", (socket: WebSocket) => {
   const session: Session = { peerId: randomUUID(), roomId: null };
 
+  let alive = true;
+  socket.on("pong", () => {
+    alive = true;
+  });
+  const heartbeat = setInterval(() => {
+    if (!alive) {
+      socket.terminate();
+      return;
+    }
+    alive = false;
+    socket.ping();
+  }, HEARTBEAT_INTERVAL_MS);
+
   socket.on("message", (raw) => {
     let message: ClientMessage;
     try {
@@ -42,6 +58,7 @@ wss.on("connection", (socket: WebSocket) => {
   });
 
   socket.on("close", () => {
+    clearInterval(heartbeat);
     if (session.roomId) rooms.leave(session.roomId, session.peerId);
   });
 });

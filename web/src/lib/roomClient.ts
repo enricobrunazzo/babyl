@@ -11,6 +11,7 @@ export type ConnectionStatus =
   | "mic"
   | "connecting"
   | "connected"
+  | "reconnecting"
   | "closed"
   | "error";
 
@@ -31,9 +32,24 @@ export interface RoomOptions {
   lang: string;
 }
 
-const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+/**
+ * ICE server configurabili via VITE_ICE_SERVERS (array JSON, es. per TURN:
+ * [{"urls":"turn:turn.babyl.it:3478","username":"u","credential":"c"}]).
+ * Default: solo STUN pubblico, sufficiente per NAT non restrittivi.
+ */
+function iceServers(): RTCIceServer[] {
+  const raw = import.meta.env.VITE_ICE_SERVERS as string | undefined;
+  if (raw) {
+    try {
+      return JSON.parse(raw) as RTCIceServer[];
+    } catch {
+      console.warn("[babyl] VITE_ICE_SERVERS non è JSON valido, uso default");
+    }
+  }
+  return [{ urls: "stun:stun.l.google.com:19302" }];
+}
+
+const MAX_RECONNECT_ATTEMPTS = 8;
 
 /**
  * Client di stanza: WebSocket di segnalazione + mesh WebRTC audio.
@@ -53,6 +69,8 @@ export class RoomClient {
   private disposed = false;
   /** Invalida le connect() in corso quando si riconnette (es. remount React). */
   private generation = 0;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   private state: RoomState = {
     status: "idle",
@@ -106,10 +124,17 @@ export class RoomClient {
       track.enabled = false;
     }
 
-    this.setState({ status: "connecting" });
+    this.openSocket();
+  }
+
+  private openSocket(): void {
+    this.setState({
+      status: this.reconnectAttempts > 0 ? "reconnecting" : "connecting",
+    });
     const ws = new WebSocket(this.opts.url);
     this.ws = ws;
     ws.onopen = () => {
+      this.reconnectAttempts = 0;
       this.send({
         type: "join",
         room: this.opts.room,
@@ -121,17 +146,41 @@ export class RoomClient {
       void this.handleMessage(JSON.parse(event.data) as ServerMessage);
     };
     ws.onclose = () => {
-      if (!this.disposed && this.state.status !== "error") {
-        this.setState({ status: "closed" });
-      }
+      if (this.ws === ws) this.ws = null;
+      if (!this.disposed) this.scheduleReconnect();
     };
-    ws.onerror = () => {
-      this.setState({ status: "error", error: "connection" });
-    };
+    // Gli errori di rete producono comunque un evento close: è lì che si
+    // decide se ritentare, quindi qui non serve cambiare stato.
+    ws.onerror = () => {};
+  }
+
+  /**
+   * Riconnessione con backoff esponenziale (rete mobile instabile).
+   * La mesh WebRTC viene ricostruita da zero al rientro: il server assegna
+   * un nuovo peerId e rimanda welcome con il roster corrente.
+   */
+  private scheduleReconnect(): void {
+    for (const peerId of [...this.pcs.keys()]) this.closePeer(peerId);
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.setState({ status: "closed", error: "connection" });
+      return;
+    }
+    const delay = Math.min(500 * 2 ** this.reconnectAttempts, 8000);
+    this.reconnectAttempts += 1;
+    this.setState({
+      status: "reconnecting",
+      peers: [],
+      channel: { speakerId: null, speakerName: null },
+    });
+    this.reconnectTimer = setTimeout(() => this.openSocket(), delay);
   }
 
   disconnect(): void {
     this.disposed = true;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.send({ type: "leave" });
     }
@@ -232,7 +281,7 @@ export class RoomClient {
     peerId: string,
     initiator: boolean,
   ): Promise<RTCPeerConnection> {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
+    const pc = new RTCPeerConnection({ iceServers: iceServers() });
     this.pcs.set(peerId, pc);
     for (const track of this.localStream?.getTracks() ?? []) {
       pc.addTrack(track, this.localStream!);

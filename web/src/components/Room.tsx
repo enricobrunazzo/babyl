@@ -14,6 +14,7 @@ const STATUS_LABELS: Record<string, string> = {
   mic: "Attivazione microfono…",
   connecting: "Connessione alla stanza…",
   connected: "Connesso",
+  reconnecting: "Riconnessione…",
   closed: "Disconnesso",
   error: "Errore di connessione",
 };

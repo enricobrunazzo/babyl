@@ -55,6 +55,11 @@ babyl/
 - WebRTC mesh peer-to-peer con trickle ICE; la segnalazione passa dal server via WebSocket.
 - La traccia microfono è sempre negoziata ma abilitata solo quando il server concede il lock PTT (nessuna rinegoziazione SDP alla pressione: latenza di attacco minima).
 
+**Resilienza**
+- Riconnessione automatica del client con backoff esponenziale (rete mobile instabile): la mesh viene ricostruita al rientro in stanza.
+- Heartbeat WebSocket lato server: i client spariti senza chiudere la connessione (telefono bloccato, cambio rete) vengono terminati, liberando presenza ed eventuale lock PTT.
+- ICE server configurabili via `VITE_ICE_SERVERS` (JSON) per aggiungere TURN in produzione.
+
 ## Roadmap verso la traduzione S2S
 
 L'MVP consegna l'audio originale peer-to-peer. La traduzione simultanea (latenza end-to-end < 1.5 s) si innesta in `server/src/translation/pipeline.ts`, che definisce l'interfaccia `TranslationProvider`:
@@ -65,10 +70,17 @@ L'MVP consegna l'audio originale peer-to-peer. La traduzione simultanea (latenza
 4. **TURN server** — necessario in produzione per NAT restrittivi (l'MVP usa solo STUN).
 5. **Business model prepagato** — metering dei secondi di inferenza per stanza/sessione, ancorato all'effettiva computazione AI.
 
+## Test
+
+- **Unitari** (`npm run test:unit`): logica di stanza e lock half-duplex del server (node:test).
+- **End-to-end** (`npm run build && npm run test:e2e`): due browser reali entrano nella stessa stanza e si verificano roster, lock PTT esclusivo, inversione ruoli, riconnessione automatica dopo un riavvio del server e uscita peer. Richiede Chromium (Playwright); percorso personalizzabile via env `CHROMIUM_PATH`.
+
+La CI (GitHub Actions) esegue typecheck, build e l'intera suite a ogni push su `main`.
+
 ## Deploy
 
 - **Web** (statico): Vercel/Netlify — build con `npm run build --workspace=web`, output in `web/dist`. Impostare `VITE_SIGNALING_URL` (es. `wss://ws.babyl.it/ws`) se il signaling è su un altro host.
-- **Signaling server** (processo persistente con WebSocket): Fly.io, Railway, Render o VPS — `npm run start --workspace=server` (porta via `PORT`, default 8787). Non è deployabile su funzioni serverless.
+- **Signaling server** (processo persistente con WebSocket): Fly.io, Railway, Render o VPS — `npm run start --workspace=server` (porta via `PORT`, default 8787), oppure col `Dockerfile` incluso. Non è deployabile su funzioni serverless.
 
 ## Script
 
@@ -77,3 +89,5 @@ L'MVP consegna l'audio originale peer-to-peer. La traduzione simultanea (latenza
 | `npm run dev` | Avvia server + web in parallelo |
 | `npm run build` | Typecheck server + build produzione web |
 | `npm run typecheck` | Typecheck di tutti i workspace |
+| `npm run test:unit` | Test unitari del server |
+| `npm run test:e2e` | Test end-to-end con due browser (richiede build) |

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installa dipendenze
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Test unitari (logica stanze e lock PTT)
+        run: npm run test:unit
+
+      - name: Installa Chromium per Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Test end-to-end (due utenti, half-duplex, riconnessione)
+        run: npm run test:e2e
