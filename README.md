@@ -35,7 +35,7 @@ babyl/
         ├── hooks/useRoom.ts  # Stato stanza reattivo (useSyncExternalStore)
         └── lib/
             ├── roomClient.ts # WebSocket, cattura/riproduzione PCM, half-duplex
-            ├── pcm.ts        # Conversioni PCM16 ↔ base64
+            ├── pcm.ts        # Conversioni PCM16 ↔ ArrayBuffer (frame binari)
             └── languages.ts  # Rilevamento lingua da navigator.language
 ```
 
@@ -93,7 +93,7 @@ babyl/
 - **`GET /metrics`** (JSON): fotografia dei consumi lato server — byte audio in ingresso/uscita, millisecondi di canale PTT, millisecondi di audio inviati/ricevuti dal motore **per coppia di lingue**, più una stima di costo OpenAI Realtime (`estCostUsd`, basata su ~$0,06/min in ingresso e ~$0,24/min in uscita). I totali sono cumulati e sopravvivono alla chiusura delle stanze; `perRoom` mostra solo le stanze vive. È il punto di misura che alimenta il metering di roadmap.
 - **`?debug=1`** in stanza: pannello diagnostico lato client con banda istantanea ↑/↓ (kbit/s), latenza inizio-parlante → primo frame audio, riserva del jitter buffer di riproduzione e totali trasferiti. Attivo solo con il parametro; a riposo non ha costo.
 
-Ordini di grandezza utili: l'audio è PCM16 mono 24 kHz (~384 kbit/s grezzi, ~512 kbit/s sul filo per l'overhead base64); mezzo Mbit/s per flusso, con l'egress del server che cresce col numero di ascoltatori e delle lingue in stanza.
+Ordini di grandezza utili: l'audio è PCM16 mono 24 kHz e viaggia come **frame WebSocket binari** (~384 kbit/s per flusso; niente più il ~33% di overhead base64 sul hop client↔server — la conversione base64 avviene solo al confine col motore di traduzione, che la richiede). L'egress del server cresce col numero di ascoltatori e delle lingue in stanza.
 
 ## Roadmap
 

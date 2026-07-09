@@ -5,9 +5,11 @@
  * un solo peer alla volta può detenere il "lock" di trasmissione.
  *
  * L'audio viaggia sempre attraverso il server (niente peer-to-peer): il
- * parlante invia PCM16 mono 24 kHz in base64; il server lo consegna agli
- * ascoltatori della stessa lingua in originale e lo instrada al motore di
- * traduzione per le altre lingue presenti in stanza.
+ * parlante invia PCM16 mono 24 kHz come **frame WebSocket binari** (niente
+ * base64/JSON sul hop client↔server); il server li consegna agli ascoltatori
+ * della stessa lingua in originale e li instrada al motore di traduzione per
+ * le altre lingue presenti in stanza. Solo i messaggi di controllo qui sotto
+ * viaggiano come frame testuali JSON.
  */
 
 export interface PeerInfo {
@@ -53,8 +55,6 @@ export interface TranslationInfo {
 export type ClientMessage =
   | { type: "join"; room: string; nickname: string; lang: string }
   | { type: "ptt"; action: "request" | "release" }
-  /** Chunk audio del parlante: PCM16 mono 24 kHz, base64. */
-  | { type: "audio"; data: string }
   | { type: "update-lang"; lang: string }
   /** Cambia la tempistica della traduzione per l'intera stanza. */
   | { type: "set-timing"; timing: TranslationTiming }
@@ -83,8 +83,6 @@ export type ServerMessage =
   /** Nuova tempistica della traduzione, valida per tutta la stanza. */
   | { type: "timing"; timing: TranslationTiming }
   | { type: "ptt-denied"; reason: "busy" }
-  /** Audio in arrivo, già nella lingua del destinatario (o voce originale). */
-  | { type: "audio"; speakerId: string; data: string }
   /** Sottotitoli live nella lingua del destinatario. */
   | { type: "transcript"; speakerId: string; text: string; final: boolean }
   | { type: "error"; message: string };

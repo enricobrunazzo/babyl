@@ -80,7 +80,13 @@ wss.on("connection", (socket: WebSocket) => {
     socket.ping();
   }, HEARTBEAT_INTERVAL_MS);
 
-  socket.on("message", (raw) => {
+  socket.on("message", (raw: Buffer, isBinary: boolean) => {
+    // Frame binario = chunk audio PCM16 del parlante (nessun wrapper JSON).
+    if (isBinary) {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      room?.handleAudio(session.peerId, raw);
+      return;
+    }
     let message: ClientMessage;
     try {
       message = JSON.parse(raw.toString());
@@ -154,12 +160,6 @@ function handleMessage(
       if (!room) return;
       if (message.action === "request") room.requestLock(session.peerId);
       else room.releaseLock(session.peerId);
-      break;
-    }
-    case "audio": {
-      const room = session.roomId ? rooms.get(session.roomId) : null;
-      if (!room) return;
-      room.handleAudio(session.peerId, message.data);
       break;
     }
     case "leave": {

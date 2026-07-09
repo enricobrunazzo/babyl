@@ -22,10 +22,10 @@ interface Peer {
   solo?: { source: string; target: string };
 }
 
-/** Secondi/ms di audio PCM16 24 kHz rappresentati da un payload base64. */
-function base64PcmDurationMs(base64: string): number {
-  // base64 → byte PCM ≈ len·3/4; 24000 campioni/s · 2 byte = 48 byte/ms.
-  return (base64.length * 0.75) / 48;
+/** Millisecondi di audio PCM16 24 kHz rappresentati da `bytes` byte. */
+function pcmDurationMs(bytes: number): number {
+  // 24000 campioni/s · 2 byte = 48 byte/ms.
+  return bytes / 48;
 }
 
 /** Statistiche per coppia di lingue: ms di audio in ingresso/uscita dal motore. */
@@ -195,21 +195,23 @@ export class Room {
     this.broadcast({ type: "channel", channel: this.channel });
   }
 
-  /** Chunk audio dal parlante (PCM16 24 kHz base64). */
-  handleAudio(peerId: string, data: string): void {
+  /** Chunk audio dal parlante come frame binario (PCM16 24 kHz). */
+  handleAudio(peerId: string, data: Buffer): void {
     if (peerId !== this.speakerId) return; // solo chi detiene il lock
     const speaker = this.peers.get(peerId);
     if (!speaker) return;
 
     this.mBytesIn += data.length;
+    // Il motore di traduzione parla base64: si converte solo al suo confine.
+    const encoded = () => data.toString("base64");
 
     // Single-device: traduci source→target e rimanda l'audio al mittente,
     // senza toccare l'instradamento multi-peer della stanza.
     if (speaker.solo && this.provider) {
       const { source, target } = speaker.solo;
-      this.pairStat(`${source}->${target}`).inMs += base64PcmDurationMs(data);
+      this.pairStat(`${source}->${target}`).inMs += pcmDurationMs(data.length);
       void this.soloSessionFor(peerId, source, target)
-        .then((session) => session.appendAudio(data))
+        .then((session) => session.appendAudio(encoded()))
         .catch(() => {});
       return;
     }
@@ -218,17 +220,17 @@ export class Room {
       if (peer.info.id === peerId) continue;
       // Voce originale a chi parla la stessa lingua (o a tutti senza provider).
       if (!this.provider || peer.info.lang === speaker.info.lang) {
-        this.send(peer.info.id, { type: "audio", speakerId: peerId, data });
+        this.sendBinary(peer.info.id, data);
         this.mBytesOut += data.length;
       }
     }
 
     if (!this.provider) return;
-    const durationMs = base64PcmDurationMs(data);
+    const durationMs = pcmDurationMs(data.length);
     for (const lang of this.listenerLangs(speaker.info.lang)) {
       this.pairStat(`${speaker.info.lang}->${lang}`).inMs += durationMs;
       void this.sessionFor(speaker.info.lang, lang)
-        .then((session) => session.appendAudio(data))
+        .then((session) => session.appendAudio(encoded()))
         .catch(() => {});
     }
   }
@@ -265,15 +267,12 @@ export class Room {
       onAudio: (chunk) => {
         const speakerId = this.lastSpeakerId;
         if (!speakerId) return;
-        this.pairStat(key).outMs += base64PcmDurationMs(chunk);
+        const audio = Buffer.from(chunk, "base64");
+        this.pairStat(key).outMs += pcmDurationMs(audio.length);
         for (const peer of this.peers.values()) {
           if (peer.info.id !== speakerId && peer.info.lang === targetLang) {
-            this.send(peer.info.id, {
-              type: "audio",
-              speakerId,
-              data: chunk,
-            });
-            this.mBytesOut += chunk.length;
+            this.sendBinary(peer.info.id, audio);
+            this.mBytesOut += audio.length;
           }
         }
       },
@@ -329,10 +328,11 @@ export class Room {
       target,
       {
         onAudio: (chunk) => {
+          const audio = Buffer.from(chunk, "base64");
           this.pairStat(`${source}->${target}`).outMs +=
-            base64PcmDurationMs(chunk);
-          this.send(peerId, { type: "audio", speakerId: peerId, data: chunk });
-          this.mBytesOut += chunk.length;
+            pcmDurationMs(audio.length);
+          this.sendBinary(peerId, audio);
+          this.mBytesOut += audio.length;
         },
         onTranscript: (text, final) => {
           this.send(peerId, { type: "transcript", speakerId: peerId, text, final });
@@ -367,6 +367,14 @@ export class Room {
     const peer = this.peers.get(peerId);
     if (peer && peer.socket.readyState === peer.socket.OPEN) {
       peer.socket.send(JSON.stringify(message));
+    }
+  }
+
+  /** Invia un frame audio binario (PCM16) a un peer. */
+  sendBinary(peerId: string, data: Buffer): void {
+    const peer = this.peers.get(peerId);
+    if (peer && peer.socket.readyState === peer.socket.OPEN) {
+      peer.socket.send(data);
     }
   }
 

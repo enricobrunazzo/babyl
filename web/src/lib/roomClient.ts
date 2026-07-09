@@ -6,7 +6,7 @@ import type {
   TranslationInfo,
   TranslationTiming,
 } from "../../../shared/protocol";
-import { base64PcmToFloat, floatToBase64Pcm, SAMPLE_RATE } from "./pcm";
+import { floatToPcmBuffer, pcmBufferToFloat, SAMPLE_RATE } from "./pcm";
 
 export type ConnectionStatus =
   | "idle"
@@ -254,9 +254,10 @@ export class RoomClient {
     }
     this.pendingSamples = [];
     this.pendingLength = 0;
-    const data = floatToBase64Pcm(merged);
-    this.upBytes += data.length;
-    this.send({ type: "audio", data });
+    const buffer = floatToPcmBuffer(merged);
+    this.upBytes += buffer.byteLength;
+    // Frame binario: niente base64/JSON sul hop verso il server.
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(buffer);
   }
 
   private openSocket(): void {
@@ -264,6 +265,7 @@ export class RoomClient {
       status: this.reconnectAttempts > 0 ? "reconnecting" : "connecting",
     });
     const ws = new WebSocket(this.opts.url);
+    ws.binaryType = "arraybuffer";
     this.ws = ws;
     ws.onopen = () => {
       this.reconnectAttempts = 0;
@@ -275,7 +277,11 @@ export class RoomClient {
       });
     };
     ws.onmessage = (event) => {
-      this.handleMessage(JSON.parse(event.data) as ServerMessage);
+      if (typeof event.data === "string") {
+        this.handleMessage(JSON.parse(event.data) as ServerMessage);
+      } else {
+        this.handleAudioFrame(event.data as ArrayBuffer);
+      }
     };
     ws.onclose = () => {
       if (this.ws === ws) this.ws = null;
@@ -429,18 +435,6 @@ export class RoomClient {
         // Bloccato (grigio) per tutti i non-parlanti.
         break;
       }
-      case "audio": {
-        this.downBytes += message.data.length;
-        if (this.awaitingFirstFrame && message.speakerId === this.state.channel.speakerId) {
-          this.lastLatencyMs = Math.round(performance.now() - this.speakerStartedAt);
-          this.awaitingFirstFrame = false;
-        }
-        this.setState({
-          audioFramesReceived: this.state.audioFramesReceived + 1,
-        });
-        if (!this.transmitting) this.enqueuePlayback(message.data);
-        break;
-      }
       case "transcript": {
         if (this.state.subtitle?.speakerId !== message.speakerId) {
           this.subtitleFinal = "";
@@ -498,8 +492,22 @@ export class RoomClient {
     }
   }
 
-  private enqueuePlayback(base64: string): void {
-    const samples = base64PcmToFloat(base64);
+  /** Frame audio binario in arrivo (tradotto o voce originale). */
+  private handleAudioFrame(buffer: ArrayBuffer): void {
+    this.downBytes += buffer.byteLength;
+    // Primo frame dopo l'inizio del parlante altrui: fissa la latenza.
+    if (this.awaitingFirstFrame) {
+      this.lastLatencyMs = Math.round(performance.now() - this.speakerStartedAt);
+      this.awaitingFirstFrame = false;
+    }
+    this.setState({
+      audioFramesReceived: this.state.audioFramesReceived + 1,
+    });
+    if (!this.transmitting) this.enqueuePlayback(buffer);
+  }
+
+  private enqueuePlayback(frame: ArrayBuffer): void {
+    const samples = pcmBufferToFloat(frame);
     if (samples.length === 0) return;
     if (!this.playCtx) {
       this.playCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
@@ -507,14 +515,14 @@ export class RoomClient {
     }
     const ctx = this.playCtx;
     void ctx.resume().catch(() => {});
-    const buffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE);
-    buffer.getChannelData(0).set(samples);
+    const audioBuffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE);
+    audioBuffer.getChannelData(0).set(samples);
     const source = ctx.createBufferSource();
-    source.buffer = buffer;
+    source.buffer = audioBuffer;
     source.connect(ctx.destination);
     // Piccolo jitter buffer, poi accodamento senza interruzioni.
     const startAt = Math.max(ctx.currentTime + 0.05, this.playCursor);
     source.start(startAt);
-    this.playCursor = startAt + buffer.duration;
+    this.playCursor = startAt + audioBuffer.duration;
   }
 }
