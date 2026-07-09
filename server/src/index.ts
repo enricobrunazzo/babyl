@@ -106,6 +106,12 @@ function handleMessage(
       );
       break;
     }
+    case "update-lang": {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      if (!room) return;
+      room.updateLang(session.peerId, String(message.lang).slice(0, 12));
+      break;
+    }
     case "ptt": {
       const room = session.roomId ? rooms.get(session.roomId) : null;
       if (!room) return;
