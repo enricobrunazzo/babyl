@@ -7,19 +7,6 @@ import type {
 
 const REALTIME_URL = "wss://api.openai.com/v1/realtime";
 
-/**
- * Provider basato sulla OpenAI Realtime API GA.
- *
- * Flusso:
- * - appendAudio(): invia PCM16 base64 al buffer input_audio_buffer
- * - commit(): chiude l'enunciato PTT e chiede una risposta audio+testo
- * - l'output arriva in streaming come audio PCM16 e transcript
- *
- * Config:
- * - OPENAI_API_KEY (obbligatoria)
- * - OPENAI_REALTIME_MODEL (default: gpt-realtime)
- * - OPENAI_REALTIME_VOICE (default: marin)
- */
 export class OpenAIRealtimeProvider implements TranslationProvider {
   readonly name = "openai-realtime";
 
@@ -34,11 +21,14 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     targetLang: string,
     callbacks: UtteranceCallbacks,
   ): Promise<TranslationSession> {
-    const ws = new WebSocket(`${REALTIME_URL}?model=${encodeURIComponent(this.model)}`, {
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+    const ws = new WebSocket(
+      `${REALTIME_URL}?model=${encodeURIComponent(this.model)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+        },
       },
-    });
+    );
 
     const instructions =
       `You are a professional simultaneous interpreter. ` +
@@ -65,7 +55,6 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       type: "session.update",
       session: {
         type: "realtime",
-        modalities: ["audio", "text"],
         instructions,
         audio: {
           input: {
@@ -152,9 +141,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
         send({ type: "input_audio_buffer.commit" });
         send({
           type: "response.create",
-          response: {
-            modalities: ["audio", "text"],
-          },
+          response: {},
         });
       },
 
@@ -170,7 +157,6 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
   }
 }
 
-/** Costruisce il provider dalle variabili d'ambiente, o null (voce originale). */
 export function providerFromEnv(): TranslationProvider | null {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
