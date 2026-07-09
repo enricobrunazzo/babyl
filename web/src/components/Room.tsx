@@ -1,5 +1,5 @@
 import { useRoom } from "../hooks/useRoom";
-import { languageByCode } from "../lib/languages";
+import { languageByCode, LANGUAGES } from "../lib/languages";
 import type { Profile } from "./Onboarding";
 import { PTTButton } from "./PTTButton";
 
@@ -45,6 +45,7 @@ export function Room({ roomId, profile, onLeave }: Props) {
   const pttState = client.pttState();
   const connected = state.status === "connected";
   const speaker = participants.find((p) => p.id === state.subtitle?.speakerId);
+  const selfLanguage = languageByCode(state.self?.lang ?? "");
 
   return (
     <main className="room" data-audio-frames={state.audioFramesReceived}>
@@ -63,6 +64,26 @@ export function Room({ roomId, profile, onLeave }: Props) {
                 ? "Traduzione simultanea attiva"
                 : "Voce originale (traduzione non configurata)"}
             </p>
+          )}
+          {connected && selfLanguage && (
+            <p className="language-badge">
+              Ascolti in: {selfLanguage.flag} {selfLanguage.nativeName}
+            </p>
+          )}
+          {connected && state.self && (
+            <label className="field-inline">
+              <span>Lingua di ascolto</span>
+              <select
+                value={state.self.lang}
+                onChange={(e) => client.updateLanguage(e.target.value)}
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.flag} {l.nativeName}
+                  </option>
+                ))}
+              </select>
+            </label>
           )}
         </div>
         <button type="button" className="leave-button" onClick={onLeave}>
@@ -86,6 +107,11 @@ export function Room({ roomId, profile, onLeave }: Props) {
                 {peer.nickname}
                 {peer.id === state.self?.id && " (tu)"}
               </span>
+              {lang && (
+                <span className="participant-lang">
+                  {lang.flag} {lang.nativeName}
+                </span>
+              )}
               {speaking && <span className="speaking-dot" aria-hidden="true" />}
             </li>
           );
