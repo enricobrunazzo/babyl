@@ -4,6 +4,8 @@
 
 Zero download, zero registrazione: il link è la stanza. Onboarding invisibile, audio WebRTC in tempo reale e interazione **Push-to-Talk Half-Duplex** per contesti ad alto valore (meeting B2B, fiere internazionali, eventi multiculturali).
 
+In cosa si differenzia dai traduttori generalisti (es. Google Translate): [`docs/confronto.md`](docs/confronto.md).
+
 ## Avvio rapido
 
 ```bash
