@@ -304,3 +304,38 @@ test("setTiming: sessioni create con la tempistica corrente, cambio la propaga",
   room.setTiming("interview");
   assert.equal(ofType(a, "timing").length, before);
 });
+
+test("metrics: conta byte e ms d'inferenza, i totali sopravvivono alla stanza", async () => {
+  const provider = new FakeProvider();
+  const manager = new RoomManager(provider);
+  const room = manager.get("misura");
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+
+  const data = "AAAABBBBCCCC"; // 12 char base64 → 0,1875 ms di audio
+  room.requestLock("a");
+  room.handleAudio("a", data);
+  await tick();
+  room.releaseLock("a");
+
+  const snap = manager.metricsSnapshot();
+  assert.equal(snap.rooms, 1);
+  assert.equal(snap.peers, 2);
+  // b è di lingua diversa: riceve solo il tradotto (stessa lunghezza).
+  assert.equal(snap.totals.bytesIn, data.length);
+  assert.equal(snap.totals.bytesOut, data.length);
+  const pair = snap.perRoom["misura"].pairs["it->de"];
+  assert.equal(pair.inMs, (data.length * 0.75) / 48);
+  assert.equal(pair.outMs, (data.length * 0.75) / 48);
+
+  // Chiusa la stanza, i consumi restano nei totali cumulati.
+  manager.leave("misura", "a");
+  manager.leave("misura", "b");
+  const after = manager.metricsSnapshot();
+  assert.equal(after.rooms, 0);
+  assert.equal(after.totals.bytesIn, data.length);
+  assert.equal(after.totals.outMs, (data.length * 0.75) / 48);
+  assert.ok(after.estCostUsd >= 0);
+});

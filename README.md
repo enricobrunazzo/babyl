@@ -82,6 +82,13 @@ babyl/
 | `TRANSLATION_TIMING` | `streaming` | Tempistica di default delle nuove stanze: `streaming` (simultanea), `interview` (frasi intere), `consecutive` (al rilascio del PTT; `release` è un alias). Modificabile in stanza dal selettore UI. |
 | `STATIC_DIR` | `web/dist` | Cartella della SPA buildata |
 
+## Diagnostica e consumi
+
+- **`GET /metrics`** (JSON): fotografia dei consumi lato server — byte audio in ingresso/uscita, millisecondi di canale PTT, millisecondi di audio inviati/ricevuti dal motore **per coppia di lingue**, più una stima di costo OpenAI Realtime (`estCostUsd`, basata su ~$0,06/min in ingresso e ~$0,24/min in uscita). I totali sono cumulati e sopravvivono alla chiusura delle stanze; `perRoom` mostra solo le stanze vive. È il punto di misura che alimenta il metering di roadmap.
+- **`?debug=1`** in stanza: pannello diagnostico lato client con banda istantanea ↑/↓ (kbit/s), latenza inizio-parlante → primo frame audio, riserva del jitter buffer di riproduzione e totali trasferiti. Attivo solo con il parametro; a riposo non ha costo.
+
+Ordini di grandezza utili: l'audio è PCM16 mono 24 kHz (~384 kbit/s grezzi, ~512 kbit/s sul filo per l'overhead base64); mezzo Mbit/s per flusso, con l'egress del server che cresce col numero di ascoltatori e delle lingue in stanza.
+
 ## Roadmap
 
 1. **Fase pubblica**: account e prepagato (auth + database, Stripe, metering dei secondi di inferenza per stanza/sessione — il punto di misura è l'interfaccia `TranslationProvider`).

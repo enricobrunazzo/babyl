@@ -16,6 +16,31 @@ interface Peer {
   socket: WebSocket;
 }
 
+/** Secondi/ms di audio PCM16 24 kHz rappresentati da un payload base64. */
+function base64PcmDurationMs(base64: string): number {
+  // base64 → byte PCM ≈ len·3/4; 24000 campioni/s · 2 byte = 48 byte/ms.
+  return (base64.length * 0.75) / 48;
+}
+
+/** Statistiche per coppia di lingue: ms di audio in ingresso/uscita dal motore. */
+export interface PairStats {
+  inMs: number;
+  outMs: number;
+}
+
+/** Fotografia dei consumi di una stanza (o aggregata). */
+export interface RoomStats {
+  peers: number;
+  /** Byte audio ricevuti dai parlanti (payload base64 ≈ byte sul filo). */
+  bytesIn: number;
+  /** Byte audio inviati agli ascoltatori (originale + tradotto). */
+  bytesOut: number;
+  /** Millisecondi di canale occupato (PTT tenuto). */
+  pttMs: number;
+  /** Consumo del motore di traduzione per coppia di lingue. */
+  pairs: Record<string, PairStats>;
+}
+
 /**
  * Una stanza di traduzione. Il server è l'unica autorità sullo stato del
  * canale Half-Duplex e l'unico snodo dell'audio: il flusso del parlante
@@ -30,6 +55,13 @@ export class Room {
   private lastSpeakerId: string | null = null;
   /** Sessioni di traduzione attive, per lingua di destinazione. */
   private sessions = new Map<string, Promise<TranslationSession>>();
+
+  // Contatori diagnostici (esposti da GET /metrics).
+  private mBytesIn = 0;
+  private mBytesOut = 0;
+  private mPttMs = 0;
+  private lockStartedAt: number | null = null;
+  private mPairs = new Map<string, PairStats>();
 
   constructor(
     readonly id: string,
@@ -60,6 +92,36 @@ export class Room {
     this.broadcast({ type: "timing", timing });
   }
 
+  /** Fotografia dei consumi correnti, incluso il lock eventualmente in corso. */
+  get stats(): RoomStats {
+    const pairs: Record<string, PairStats> = {};
+    for (const [key, value] of this.mPairs) pairs[key] = { ...value };
+    const liveLock = this.lockStartedAt ? Date.now() - this.lockStartedAt : 0;
+    return {
+      peers: this.peers.size,
+      bytesIn: this.mBytesIn,
+      bytesOut: this.mBytesOut,
+      pttMs: Math.round(this.mPttMs + liveLock),
+      pairs,
+    };
+  }
+
+  private pairStat(key: string): PairStats {
+    let stat = this.mPairs.get(key);
+    if (!stat) {
+      stat = { inMs: 0, outMs: 0 };
+      this.mPairs.set(key, stat);
+    }
+    return stat;
+  }
+
+  /** Chiude il cronometro del lock e accumula i ms nel totale PTT. */
+  private endLock(): void {
+    if (this.lockStartedAt === null) return;
+    this.mPttMs += Date.now() - this.lockStartedAt;
+    this.lockStartedAt = null;
+  }
+
   get channel(): ChannelState {
     const speaker = this.speakerId ? this.peers.get(this.speakerId) : undefined;
     return {
@@ -86,6 +148,7 @@ export class Room {
     if (!this.peers.delete(peerId)) return;
     if (this.speakerId === peerId) {
       this.speakerId = null;
+      this.endLock();
       this.commitUtterance();
       this.broadcast({ type: "channel", channel: this.channel });
     }
@@ -107,12 +170,14 @@ export class Room {
     }
     this.speakerId = peerId;
     this.lastSpeakerId = peerId;
+    if (this.lockStartedAt === null) this.lockStartedAt = Date.now();
     this.broadcast({ type: "channel", channel: this.channel });
   }
 
   releaseLock(peerId: string): void {
     if (this.speakerId !== peerId) return;
     this.speakerId = null;
+    this.endLock();
     this.commitUtterance();
     this.broadcast({ type: "channel", channel: this.channel });
   }
@@ -123,16 +188,21 @@ export class Room {
     const speaker = this.peers.get(peerId);
     if (!speaker) return;
 
+    this.mBytesIn += data.length;
+
     for (const peer of this.peers.values()) {
       if (peer.info.id === peerId) continue;
       // Voce originale a chi parla la stessa lingua (o a tutti senza provider).
       if (!this.provider || peer.info.lang === speaker.info.lang) {
         this.send(peer.info.id, { type: "audio", speakerId: peerId, data });
+        this.mBytesOut += data.length;
       }
     }
 
     if (!this.provider) return;
+    const durationMs = base64PcmDurationMs(data);
     for (const lang of this.listenerLangs(speaker.info.lang)) {
+      this.pairStat(`${speaker.info.lang}->${lang}`).inMs += durationMs;
       void this.sessionFor(speaker.info.lang, lang)
         .then((session) => session.appendAudio(data))
         .catch(() => {});
@@ -171,6 +241,7 @@ export class Room {
       onAudio: (chunk) => {
         const speakerId = this.lastSpeakerId;
         if (!speakerId) return;
+        this.pairStat(key).outMs += base64PcmDurationMs(chunk);
         for (const peer of this.peers.values()) {
           if (peer.info.id !== speakerId && peer.info.lang === targetLang) {
             this.send(peer.info.id, {
@@ -178,6 +249,7 @@ export class Room {
               speakerId,
               data: chunk,
             });
+            this.mBytesOut += chunk.length;
           }
         }
       },
@@ -238,8 +310,39 @@ export class Room {
   }
 }
 
+/**
+ * Consumi cumulati delle stanze già chiuse (il sistema è stateless: le stanze
+ * vuote spariscono, ma i totali di consumo restano per la diagnostica).
+ */
+interface RetiredTotals {
+  bytesIn: number;
+  bytesOut: number;
+  pttMs: number;
+  inMs: number;
+  outMs: number;
+}
+
+/** Fotografia esposta da GET /metrics. */
+export interface MetricsSnapshot {
+  uptimeSec: number;
+  rooms: number;
+  peers: number;
+  totals: RetiredTotals;
+  /** Stima di costo del motore (OpenAI Realtime): ~$0,06/min in, ~$0,24/min out. */
+  estCostUsd: number;
+  perRoom: Record<string, RoomStats>;
+}
+
 export class RoomManager {
   private rooms = new Map<string, Room>();
+  private startedAt = Date.now();
+  private retired: RetiredTotals = {
+    bytesIn: 0,
+    bytesOut: 0,
+    pttMs: 0,
+    inMs: 0,
+    outMs: 0,
+  };
 
   constructor(
     private provider: TranslationProvider | null = null,
@@ -261,8 +364,48 @@ export class RoomManager {
     if (!room) return;
     room.leave(peerId);
     if (room.peers.size === 0) {
+      this.fold(room.stats);
       room.destroy();
       this.rooms.delete(roomId);
     }
+  }
+
+  /** Ripiega i consumi di una stanza che sta per sparire nei totali cumulati. */
+  private fold(stats: RoomStats): void {
+    this.retired.bytesIn += stats.bytesIn;
+    this.retired.bytesOut += stats.bytesOut;
+    this.retired.pttMs += stats.pttMs;
+    for (const pair of Object.values(stats.pairs)) {
+      this.retired.inMs += pair.inMs;
+      this.retired.outMs += pair.outMs;
+    }
+  }
+
+  metricsSnapshot(): MetricsSnapshot {
+    const totals: RetiredTotals = { ...this.retired };
+    const perRoom: Record<string, RoomStats> = {};
+    let peers = 0;
+    for (const [id, room] of this.rooms) {
+      const stats = room.stats;
+      perRoom[id] = stats;
+      peers += stats.peers;
+      totals.bytesIn += stats.bytesIn;
+      totals.bytesOut += stats.bytesOut;
+      totals.pttMs += stats.pttMs;
+      for (const pair of Object.values(stats.pairs)) {
+        totals.inMs += pair.inMs;
+        totals.outMs += pair.outMs;
+      }
+    }
+    const estCostUsd =
+      (totals.inMs / 60_000) * 0.06 + (totals.outMs / 60_000) * 0.24;
+    return {
+      uptimeSec: Math.round((Date.now() - this.startedAt) / 1000),
+      rooms: this.rooms.size,
+      peers,
+      totals,
+      estCostUsd: Math.round(estCostUsd * 10_000) / 10_000,
+      perRoom,
+    };
   }
 }

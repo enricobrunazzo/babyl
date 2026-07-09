@@ -25,6 +25,21 @@ export interface Subtitle {
   final: boolean;
 }
 
+/** Metriche diagnostiche lato client, aggiornate ~1/s in modalità debug. */
+export interface ClientMetrics {
+  /** Byte audio inviati/ricevuti (payload base64 ≈ byte sul filo). */
+  upBytes: number;
+  downBytes: number;
+  /** Banda istantanea (kbit/s) nell'ultimo secondo. */
+  upKbps: number;
+  downKbps: number;
+  /** Latenza inizio-parlante → primo frame audio ricevuto (ms), o null. */
+  lastLatencyMs: number | null;
+  /** Riserva del jitter buffer di riproduzione (ms in anticipo). */
+  jitterMs: number;
+  framesReceived: number;
+}
+
 export interface RoomState {
   status: ConnectionStatus;
   self: PeerInfo | null;
@@ -34,6 +49,8 @@ export interface RoomState {
   subtitle: Subtitle | null;
   /** Contatore diagnostico dei chunk audio ricevuti (usato anche nei test). */
   audioFramesReceived: number;
+  /** Metriche diagnostiche (popolate solo in modalità debug). */
+  metrics: ClientMetrics;
   error: "mic-denied" | "connection" | null;
 }
 
@@ -42,6 +59,8 @@ export interface RoomOptions {
   room: string;
   nickname: string;
   lang: string;
+  /** Abilita il campionamento delle metriche (pannello ?debug=1). */
+  debug?: boolean;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 8;
@@ -76,6 +95,16 @@ export class RoomClient {
   private playCtx: AudioContext | null = null;
   private playCursor = 0;
 
+  // Metriche diagnostiche (campionate solo in modalità debug).
+  private metricsTimer: ReturnType<typeof setInterval> | null = null;
+  private upBytes = 0;
+  private downBytes = 0;
+  private lastUpBytes = 0;
+  private lastDownBytes = 0;
+  private lastLatencyMs: number | null = null;
+  private speakerStartedAt = 0;
+  private awaitingFirstFrame = false;
+
   // Sottotitoli: in modalità simultanea un enunciato produce più segmenti
   // tradotti; i testi finali si accumulano, il parziale corrente si appende.
   private subtitleFinal = "";
@@ -89,6 +118,15 @@ export class RoomClient {
     translation: { enabled: false, provider: "off", timing: "streaming" },
     subtitle: null,
     audioFramesReceived: 0,
+    metrics: {
+      upBytes: 0,
+      downBytes: 0,
+      upKbps: 0,
+      downKbps: 0,
+      lastLatencyMs: null,
+      jitterMs: 0,
+      framesReceived: 0,
+    },
     error: null,
   };
 
@@ -139,7 +177,33 @@ export class RoomClient {
     if (this.disposed || generation !== this.generation) return;
 
     this.setState({ status: "connecting" });
+    if (this.opts.debug) this.startMetrics();
     this.openSocket();
+  }
+
+  /** Campiona banda e jitter ~1/s (solo in modalità debug). */
+  private startMetrics(): void {
+    if (this.metricsTimer !== null) return;
+    this.metricsTimer = setInterval(() => {
+      const upKbps = (this.upBytes - this.lastUpBytes) * 8 / 1000;
+      const downKbps = (this.downBytes - this.lastDownBytes) * 8 / 1000;
+      this.lastUpBytes = this.upBytes;
+      this.lastDownBytes = this.downBytes;
+      const jitterMs = this.playCtx
+        ? Math.max(0, (this.playCursor - this.playCtx.currentTime) * 1000)
+        : 0;
+      this.setState({
+        metrics: {
+          upBytes: this.upBytes,
+          downBytes: this.downBytes,
+          upKbps: Math.round(upKbps),
+          downKbps: Math.round(downKbps),
+          lastLatencyMs: this.lastLatencyMs,
+          jitterMs: Math.round(jitterMs),
+          framesReceived: this.state.audioFramesReceived,
+        },
+      });
+    }, 1000);
   }
 
   /** Cattura a 24 kHz: il browser ricampiona il microfono per noi. */
@@ -181,7 +245,9 @@ export class RoomClient {
     }
     this.pendingSamples = [];
     this.pendingLength = 0;
-    this.send({ type: "audio", data: floatToBase64Pcm(merged) });
+    const data = floatToBase64Pcm(merged);
+    this.upBytes += data.length;
+    this.send({ type: "audio", data });
   }
 
   private openSocket(): void {
@@ -231,6 +297,10 @@ export class RoomClient {
 
   disconnect(): void {
     this.disposed = true;
+    if (this.metricsTimer !== null) {
+      clearInterval(this.metricsTimer);
+      this.metricsTimer = null;
+    }
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -338,6 +408,11 @@ export class RoomClient {
         break;
       }
       case "audio": {
+        this.downBytes += message.data.length;
+        if (this.awaitingFirstFrame && message.speakerId === this.state.channel.speakerId) {
+          this.lastLatencyMs = Math.round(performance.now() - this.speakerStartedAt);
+          this.awaitingFirstFrame = false;
+        }
         this.setState({
           audioFramesReceived: this.state.audioFramesReceived + 1,
         });
@@ -379,6 +454,11 @@ export class RoomClient {
       // Nuovo parlante: via i sottotitoli dell'enunciato precedente.
       this.subtitleFinal = "";
       this.subtitlePartial = "";
+      // Avvia il cronometro latenza se a parlare è un altro peer.
+      if (channel.speakerId !== this.state.self?.id) {
+        this.speakerStartedAt = performance.now();
+        this.awaitingFirstFrame = true;
+      }
     }
     this.setState({
       channel,

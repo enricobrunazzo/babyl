@@ -41,6 +41,14 @@ const httpServer = createServer((req, res) => {
     res.end(JSON.stringify({ ok: true }));
     return;
   }
+  if (req.url === "/metrics") {
+    res.writeHead(200, {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+    });
+    res.end(JSON.stringify(rooms.metricsSnapshot()));
+    return;
+  }
   if (staticHandler) {
     staticHandler(req, res);
     return;

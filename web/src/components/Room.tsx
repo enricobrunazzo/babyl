@@ -40,11 +40,14 @@ const STATUS_LABELS: Record<string, string> = {
   error: "Errore di connessione",
 };
 
+const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
+
 export function Room({ roomId, profile, onLeave }: Props) {
   const { client, state } = useRoom({
     room: roomId,
     nickname: profile.nickname,
     lang: profile.lang,
+    debug: DEBUG,
   });
 
   if (state.error === "mic-denied") {
@@ -163,6 +166,42 @@ export function Room({ roomId, profile, onLeave }: Props) {
           {speaker && <span className="subtitle-speaker">{speaker.nickname}</span>}
           <p>{state.subtitle.text}</p>
         </div>
+      )}
+
+      {DEBUG && (
+        <dl className="debug-panel" aria-label="Metriche diagnostiche">
+          <div>
+            <dt>Banda ↑</dt>
+            <dd>{state.metrics.upKbps} kbit/s</dd>
+          </div>
+          <div>
+            <dt>Banda ↓</dt>
+            <dd>{state.metrics.downKbps} kbit/s</dd>
+          </div>
+          <div>
+            <dt>Latenza</dt>
+            <dd>
+              {state.metrics.lastLatencyMs !== null
+                ? `${state.metrics.lastLatencyMs} ms`
+                : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt>Jitter buffer</dt>
+            <dd>{state.metrics.jitterMs} ms</dd>
+          </div>
+          <div>
+            <dt>Frame ricevuti</dt>
+            <dd>{state.metrics.framesReceived}</dd>
+          </div>
+          <div>
+            <dt>Totale ↑ / ↓</dt>
+            <dd>
+              {(state.metrics.upBytes / 1024).toFixed(0)} /{" "}
+              {(state.metrics.downBytes / 1024).toFixed(0)} KB
+            </dd>
+          </div>
+        </dl>
       )}
 
       <PTTButton

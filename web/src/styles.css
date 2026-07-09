@@ -232,6 +232,28 @@ main {
   color: var(--text-dim);
 }
 
+.debug-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.debug-panel dt {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.debug-panel dd {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
 .subtitle {
   background: var(--surface);
   border: 1px solid var(--border);
