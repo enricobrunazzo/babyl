@@ -57,7 +57,7 @@ babyl/
 **Traduzione simultanea (architettura server-centrica)**
 - L'audio viaggia sempre attraverso il server (niente peer-to-peer, niente TURN): il paradigma half-duplex significa un solo flusso alla volta, che il server smista.
 - Il parlante invia PCM16 mono 24 kHz via WebSocket (cattura AudioWorklet); gli ascoltatori della sua stessa lingua ricevono la voce originale, per ogni altra lingua in stanza il server apre una sessione col motore di traduzione e distribuisce l'audio tradotto.
-- **Motore**: OpenAI Realtime API (speech-to-speech nativo). Il PTT si sposa con la modalità manuale dell'API: audio accumulato durante la pressione, traduzione al rilascio (`commit`). Sessioni riusate tra enunciati per mantenere il contesto.
+- **Motore**: OpenAI Realtime API (speech-to-speech nativo). Di default la tempistica è **simultanea** (effetto interprete TV): il VAD server-side segmenta il parlato sulle pause naturali e la voce tradotta parte mentre il parlante sta ancora parlando; al rilascio del PTT una coda di silenzio fa chiudere l'ultimo segmento. Con `TRANSLATION_TIMING=release` si torna alla modalità consecutiva (traduzione al rilascio). Sessioni riusate tra enunciati per mantenere il contesto.
 - **Sottotitoli live**: la trascrizione della traduzione arriva in streaming a ogni ascoltatore nella propria lingua.
 - Senza `OPENAI_API_KEY` l'app funziona in modalità **voce originale** (nessuna traduzione, tutti sentono tutto): utile per sviluppo e test senza costi.
 - Il motore è pluggabile: `server/src/translation/provider.ts` definisce l'interfaccia, `openaiRealtime.ts` è l'implementazione attiva.
@@ -72,8 +72,9 @@ babyl/
 | --- | --- | --- |
 | `PORT` | `8787` | Porta HTTP/WebSocket |
 | `OPENAI_API_KEY` | — | Abilita la traduzione simultanea; assente = voce originale |
-| `OPENAI_REALTIME_MODEL` | `gpt-realtime-mini` | Modello Realtime da usare |
+| `OPENAI_REALTIME_MODEL` | `gpt-realtime` | Modello Realtime da usare |
 | `OPENAI_REALTIME_VOICE` | `marin` | Voce della sintesi |
+| `TRANSLATION_TIMING` | `streaming` | `streaming` = traduce mentre si parla (VAD); `release` = traduce al rilascio del PTT |
 | `STATIC_DIR` | `web/dist` | Cartella della SPA buildata |
 
 ## Roadmap

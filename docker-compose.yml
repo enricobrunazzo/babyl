@@ -18,8 +18,9 @@ services:
       # in modalità "voce originale" (nessuna traduzione).
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       # Opzionali:
-      # - OPENAI_REALTIME_MODEL=gpt-realtime-mini
+      # - OPENAI_REALTIME_MODEL=gpt-realtime
       # - OPENAI_REALTIME_VOICE=marin
+      # - TRANSLATION_TIMING=release   # traduzione al rilascio invece che simultanea
     labels:
       - com.centurylinklabs.watchtower.enable=true
 

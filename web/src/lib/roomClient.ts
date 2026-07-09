@@ -75,6 +75,11 @@ export class RoomClient {
   private playCtx: AudioContext | null = null;
   private playCursor = 0;
 
+  // Sottotitoli: in modalità simultanea un enunciato produce più segmenti
+  // tradotti; i testi finali si accumulano, il parziale corrente si appende.
+  private subtitleFinal = "";
+  private subtitlePartial = "";
+
   private state: RoomState = {
     status: "idle",
     self: null,
@@ -326,13 +331,20 @@ export class RoomClient {
         break;
       }
       case "transcript": {
+        if (this.state.subtitle?.speakerId !== message.speakerId) {
+          this.subtitleFinal = "";
+          this.subtitlePartial = "";
+        }
+        if (message.final) {
+          this.subtitleFinal = `${this.subtitleFinal} ${message.text}`.trim();
+          this.subtitlePartial = "";
+        } else {
+          this.subtitlePartial += message.text;
+        }
         this.setState({
           subtitle: {
             speakerId: message.speakerId,
-            // I delta parziali si accumulano; il testo finale li sostituisce.
-            text: message.final
-              ? message.text
-              : this.partialSubtitleText(message.speakerId) + message.text,
+            text: `${this.subtitleFinal} ${this.subtitlePartial}`.trim(),
             final: message.final,
           },
         });
@@ -345,21 +357,17 @@ export class RoomClient {
     }
   }
 
-  private partialSubtitleText(speakerId: string): string {
-    const current = this.state.subtitle;
-    if (current && !current.final && current.speakerId === speakerId) {
-      return current.text;
-    }
-    return "";
-  }
-
   private applyChannel(channel: ChannelState): void {
     const startingUtterance =
       channel.speakerId !== null &&
       channel.speakerId !== this.state.channel.speakerId;
+    if (startingUtterance) {
+      // Nuovo parlante: via i sottotitoli dell'enunciato precedente.
+      this.subtitleFinal = "";
+      this.subtitlePartial = "";
+    }
     this.setState({
       channel,
-      // Nuovo parlante: via i sottotitoli dell'enunciato precedente.
       subtitle: startingUtterance ? null : this.state.subtitle,
     });
     this.setTransmitting(channel.speakerId === this.state.self?.id);

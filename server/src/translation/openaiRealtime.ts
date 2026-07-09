@@ -8,8 +8,25 @@ import type {
 const REALTIME_URL = "wss://api.openai.com/v1/realtime";
 const SAMPLE_RATE = 24000;
 
+/**
+ * Coda di silenzio (600 ms di PCM16 a zero) accodata al rilascio del PTT in
+ * modalità simultanea: fa scattare il VAD sull'ultimo segmento di parlato
+ * senza bisogno del commit manuale, che confliggerebbe col VAD server-side.
+ */
+const TRAILING_SILENCE = Buffer.alloc(SAMPLE_RATE * 0.6 * 2).toString("base64");
+
 export class OpenAIRealtimeProvider implements TranslationProvider {
   readonly name = "openai-realtime";
+
+  /**
+   * Tempistica della traduzione:
+   * - "streaming" (default): interpretazione simultanea — il VAD lato
+   *   OpenAI segmenta il parlato sulle pause naturali e la voce tradotta
+   *   parte mentre il parlante sta ancora parlando (effetto interprete TV);
+   * - "release": consecutiva — la traduzione parte solo al rilascio del PTT.
+   */
+  private streaming =
+    (process.env.TRANSLATION_TIMING ?? "streaming") !== "release";
 
   constructor(
     private apiKey: string,
@@ -63,7 +80,20 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
               type: "audio/pcm",
               rate: SAMPLE_RATE,
             },
-            turn_detection: null,
+            turn_detection: this.streaming
+              ? {
+                  // Segmentazione sulle pause naturali del parlato: ogni
+                  // segmento viene tradotto mentre il parlante prosegue.
+                  type: "server_vad",
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 500,
+                  create_response: true,
+                  // La traduzione in corso non va interrotta quando il
+                  // parlante riprende: deve accodarsi, non troncarsi.
+                  interrupt_response: false,
+                }
+              : null,
           },
           output: {
             format: {
@@ -123,6 +153,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     });
 
     let buffered = false;
+    const streaming = this.streaming;
 
     return {
       sourceLang,
@@ -140,6 +171,13 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       commit() {
         if (!buffered) return;
         buffered = false;
+
+        if (streaming) {
+          // Il VAD ha già tradotto i segmenti durante il parlato: qui basta
+          // il silenzio in coda per fargli chiudere l'ultimo segmento.
+          send({ type: "input_audio_buffer.append", audio: TRAILING_SILENCE });
+          return;
+        }
 
         send({ type: "input_audio_buffer.commit" });
         send({
