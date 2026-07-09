@@ -41,11 +41,14 @@ export function Onboarding({ roomId, onEnter }: Props) {
         }}
       >
         <label className="field">
-          <span>La tua lingua</span>
+          <span>Lingua in cui vuoi ascoltare</span>
+          <small className="field-help">
+            Babyl tradurrà gli altri partecipanti in questa lingua.
+          </small>
           <select
             value={lang}
             onChange={(event) => setLang(event.target.value)}
-            aria-label="Seleziona la tua lingua"
+            aria-label="Seleziona la lingua di ascolto"
           >
             {LANGUAGES.map((l) => (
               <option key={l.code} value={l.code}>
