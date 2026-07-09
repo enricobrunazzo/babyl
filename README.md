@@ -97,9 +97,14 @@ Ordini di grandezza utili: l'audio è PCM16 mono 24 kHz e viaggia come **frame W
 
 ## Roadmap
 
+Il backlog completo (con complessità e punti di intervento) è in
+[`docs/roadmap.md`](docs/roadmap.md) — inclusa l'analisi
+sull'**integrazione con le telefonate reali (PSTN)**. In sintesi:
+
 1. **Fase pubblica**: account e prepagato (auth + database, Stripe, metering dei secondi di inferenza per stanza/sessione — il punto di misura è l'interfaccia `TranslationProvider`).
-2. **Qualità**: VAD per tagliare i silenzi (meno secondi fatturati), scelta voce per utente, più lingue.
-3. **Scala**: spostare il container su un host cloud quando il NAS non basta; il codice non cambia.
+2. **Qualità**: compressione Opus sull'uplink, auto-detect lingua nel single-device, reset periodico del contesto OpenAI, VAD per tagliare i silenzi, scelta voce per utente, più lingue.
+3. **Nuovi canali**: bridge verso le telefonate PSTN (Twilio/Telnyx) sopra `TranslationProvider`; chiamata 1:1 in-app (WebRTC).
+4. **Scala**: spostare il container su un host cloud quando il NAS non basta; il codice non cambia.
 
 ## Test
 
