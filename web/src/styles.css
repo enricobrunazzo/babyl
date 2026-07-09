@@ -168,8 +168,9 @@ main {
 
 .room-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
 }
 
 .room-header h2 {
@@ -236,6 +237,39 @@ main {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  padding-top: 4px;
+}
+
+.room-field {
+  display: flex;
+  gap: 8px;
+}
+
+.room-field input {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-generate {
+  flex-shrink: 0;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.share-new-room {
+  width: 100%;
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: none;
+  color: var(--text);
+  font-size: 0.95rem;
+  cursor: pointer;
 }
 
 .share-button {

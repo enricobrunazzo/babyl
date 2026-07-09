@@ -30,6 +30,8 @@ interface Props {
   roomId: string;
   profile: Profile;
   onLeave: () => void;
+  /** Crea e passa a una nuova stanza (rimonta il client). */
+  onNewRoom: () => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -44,7 +46,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
-export function Room({ roomId, profile, onLeave }: Props) {
+export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   const isSolo = profile.mode === "solo";
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -199,6 +201,16 @@ export function Room({ roomId, profile, onLeave }: Props) {
                 </button>
               )}
             </div>
+            <button
+              type="button"
+              className="share-new-room"
+              onClick={() => {
+                setShowShare(false);
+                onNewRoom();
+              }}
+            >
+              + Crea nuova stanza
+            </button>
             <button
               type="button"
               className="share-close"

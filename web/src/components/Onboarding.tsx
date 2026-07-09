@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { detectLanguage, LANGUAGES } from "../lib/languages";
+import { newRoomId } from "../lib/roomName";
 import { BabylMark } from "./BabylLogo";
 
 export interface Profile {
@@ -19,6 +20,7 @@ function otherLang(lang: string): string {
 
 interface Props {
   roomId: string;
+  onRoomChange: (id: string) => void;
   onEnter: (profile: Profile) => void;
 }
 
@@ -28,7 +30,7 @@ interface Props {
  * (autocomplete="given-name"), consenso esplicito e un unico pulsante ENTRA.
  * Nessun dato viene scritto in localStorage: il sistema è stateless.
  */
-export function Onboarding({ roomId, onEnter }: Props) {
+export function Onboarding({ roomId, onRoomChange, onEnter }: Props) {
   const [mode, setMode] = useState<"room" | "solo">("room");
   const [lang, setLang] = useState(detectLanguage());
   const [langB, setLangB] = useState(() => otherLang(detectLanguage()));
@@ -150,6 +152,32 @@ export function Onboarding({ roomId, onEnter }: Props) {
           <span>Dichiaro di avere più di 16 anni o il consenso dei genitori.</span>
         </label>
 
+        {!solo && (
+          <label className="field">
+            <span>Stanza</span>
+            <small className="field-help">
+              Il nome è il link: chi ce l'ha entra qui. Cambialo o generane uno
+              nuovo per una stanza tutta tua.
+            </small>
+            <div className="room-field">
+              <input
+                type="text"
+                value={roomId}
+                maxLength={64}
+                onChange={(event) => onRoomChange(event.target.value)}
+                aria-label="Nome della stanza"
+              />
+              <button
+                type="button"
+                className="room-generate"
+                onClick={() => onRoomChange(newRoomId())}
+              >
+                Genera
+              </button>
+            </div>
+          </label>
+        )}
+
         <button type="submit" className="enter-button" disabled={!canEnter}>
           ENTRA
         </button>
@@ -161,15 +189,11 @@ export function Onboarding({ roomId, onEnter }: Props) {
         </p>
       </form>
 
-      <footer className="room-hint">
-        {solo ? (
-          <>Un telefono, due persone: parla a turno, tocca ⇄ per invertire.</>
-        ) : (
-          <>
-            Stanza: <strong>{roomId}</strong>
-          </>
-        )}
-      </footer>
+      {solo && (
+        <footer className="room-hint">
+          Un telefono, due persone: parla a turno, tocca ⇄ per invertire.
+        </footer>
+      )}
     </main>
   );
 }

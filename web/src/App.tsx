@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Onboarding, type Profile } from "./components/Onboarding";
 import { Room } from "./components/Room";
+import { newRoomId } from "./lib/roomName";
 
 /**
  * Stanza dall'URL (?room=… oppure /r/<nome>), con default pubblico:
@@ -15,7 +16,7 @@ function roomFromUrl(): string {
 }
 
 export default function App() {
-  const [roomId] = useState(roomFromUrl);
+  const [roomId, setRoomId] = useState(roomFromUrl);
   // Stanza privata per la modalità single-device: l'audio torna solo al
   // dispositivo stesso, quindi non deve collidere con una stanza pubblica.
   const [soloRoom] = useState(
@@ -23,15 +24,32 @@ export default function App() {
   );
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  const activeRoom = profile?.mode === "solo" ? soloRoom : roomId;
+  // Cambia stanza e allinea l'URL, così un refresh o il link di condivisione
+  // puntano alla stanza corrente.
+  const changeRoom = useCallback((id: string) => {
+    // Non troncare mentre si digita: lo slice basta, il default scatta
+    // solo se il campo resta vuoto.
+    const value = id.slice(0, 64);
+    setRoomId(value);
+    const url = new URL(location.href);
+    url.pathname = "/";
+    url.searchParams.set("room", value.trim() || "piazza");
+    history.replaceState(null, "", url.toString());
+  }, []);
+
+  const activeRoom =
+    profile?.mode === "solo" ? soloRoom : roomId.trim() || "piazza";
 
   return profile ? (
+    // key: cambiare stanza rimonta il client così si entra in quella nuova.
     <Room
+      key={activeRoom}
       roomId={activeRoom}
       profile={profile}
       onLeave={() => setProfile(null)}
+      onNewRoom={() => changeRoom(newRoomId())}
     />
   ) : (
-    <Onboarding roomId={roomId} onEnter={setProfile} />
+    <Onboarding roomId={roomId} onRoomChange={changeRoom} onEnter={setProfile} />
   );
 }
