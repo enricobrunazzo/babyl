@@ -74,6 +74,13 @@ export class Room {
     this.broadcast({ type: "peer-left", peerId });
   }
 
+  updateLang(peerId: string, lang: string): void {
+    const peer = this.peers.get(peerId);
+    if (!peer) return;
+    peer.info.lang = lang;
+    this.broadcast({ type: "peer-updated", peer: peer.info });
+  }
+
   /** Concede il lock solo se il canale è libero (o già del richiedente). */
   requestLock(peerId: string): void {
     if (this.speakerId !== null && this.speakerId !== peerId) {
