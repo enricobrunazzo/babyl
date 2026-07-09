@@ -4,6 +4,7 @@ import type {
   PeerInfo,
   ServerMessage,
   TranslationInfo,
+  TranslationTiming,
 } from "../../../shared/protocol";
 import { base64PcmToFloat, floatToBase64Pcm, SAMPLE_RATE } from "./pcm";
 
@@ -85,7 +86,7 @@ export class RoomClient {
     self: null,
     peers: [],
     channel: { speakerId: null, speakerName: null },
-    translation: { enabled: false, provider: "off" },
+    translation: { enabled: false, provider: "off", timing: "streaming" },
     subtitle: null,
     audioFramesReceived: 0,
     error: null,
@@ -268,6 +269,13 @@ export class RoomClient {
     });
   }
 
+  /** Cambia la tempistica della traduzione (impostazione di stanza). */
+  setTiming(timing: TranslationTiming): void {
+    this.send({ type: "set-timing", timing });
+    // Aggiornamento ottimistico: il broadcast "timing" del server conferma.
+    this.setState({ translation: { ...this.state.translation, timing } });
+  }
+
   pttState(): PttState {
     const { channel, self } = this.state;
     if (channel.speakerId === null) return "free";
@@ -316,6 +324,12 @@ export class RoomClient {
       }
       case "channel": {
         this.applyChannel(message.channel);
+        break;
+      }
+      case "timing": {
+        this.setState({
+          translation: { ...this.state.translation, timing: message.timing },
+        });
         break;
       }
       case "ptt-denied": {

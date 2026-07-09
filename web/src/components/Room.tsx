@@ -1,7 +1,28 @@
 import { useRoom } from "../hooks/useRoom";
 import { languageByCode, LANGUAGES } from "../lib/languages";
+import type { TranslationTiming } from "../../../shared/protocol";
 import type { Profile } from "./Onboarding";
 import { PTTButton } from "./PTTButton";
+
+/** Preset di tempistica offerti in stanza (condivisi da tutti i partecipanti). */
+const TIMING_OPTIONS: { value: TranslationTiming; label: string; hint: string }[] =
+  [
+    {
+      value: "streaming",
+      label: "Conversazione (simultanea)",
+      hint: "La traduzione parte mentre parli, effetto interprete TV.",
+    },
+    {
+      value: "interview",
+      label: "Intervista (frasi intere)",
+      hint: "Attende le pause più lunghe: turni netti, niente frasi spezzate.",
+    },
+    {
+      value: "consecutive",
+      label: "Consecutiva (al rilascio)",
+      hint: "Traduce solo quando rilasci il pulsante: turni puliti.",
+    },
+  ];
 
 interface Props {
   roomId: string;
@@ -46,6 +67,7 @@ export function Room({ roomId, profile, onLeave }: Props) {
   const connected = state.status === "connected";
   const speaker = participants.find((p) => p.id === state.subtitle?.speakerId);
   const selfLanguage = languageByCode(state.self?.lang ?? "");
+  const timing = TIMING_OPTIONS.find((t) => t.value === state.translation.timing);
 
   return (
     <main className="room" data-audio-frames={state.audioFramesReceived}>
@@ -83,6 +105,24 @@ export function Room({ roomId, profile, onLeave }: Props) {
                   </option>
                 ))}
               </select>
+            </label>
+          )}
+          {connected && state.translation.enabled && (
+            <label className="field-inline">
+              <span>Tempistica</span>
+              <select
+                value={state.translation.timing}
+                onChange={(e) =>
+                  client.setTiming(e.target.value as TranslationTiming)
+                }
+              >
+                {TIMING_OPTIONS.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              {timing && <small className="field-help">{timing.hint}</small>}
             </label>
           )}
         </div>

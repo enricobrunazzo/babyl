@@ -57,7 +57,12 @@ babyl/
 **Traduzione simultanea (architettura server-centrica)**
 - L'audio viaggia sempre attraverso il server (niente peer-to-peer, niente TURN): il paradigma half-duplex significa un solo flusso alla volta, che il server smista.
 - Il parlante invia PCM16 mono 24 kHz via WebSocket (cattura AudioWorklet); gli ascoltatori della sua stessa lingua ricevono la voce originale, per ogni altra lingua in stanza il server apre una sessione col motore di traduzione e distribuisce l'audio tradotto.
-- **Motore**: OpenAI Realtime API (speech-to-speech nativo). Di default la tempistica è **simultanea** (effetto interprete TV): il VAD server-side segmenta il parlato sulle pause naturali e la voce tradotta parte mentre il parlante sta ancora parlando; al rilascio del PTT una coda di silenzio fa chiudere l'ultimo segmento. Con `TRANSLATION_TIMING=release` si torna alla modalità consecutiva (traduzione al rilascio). Sessioni riusate tra enunciati per mantenere il contesto.
+- **Motore**: OpenAI Realtime API (speech-to-speech nativo). La tempistica è un'**impostazione di stanza** scelta dal selettore in UI e condivisa da tutti i partecipanti:
+  - `streaming` (default) — **simultanea** (effetto interprete TV): il VAD server-side segmenta sulle pause naturali e la voce tradotta parte mentre il parlante prosegue;
+  - `interview` — come streaming ma con pausa di segmentazione più lunga (≈900 ms): le pause retoriche non spezzano la frase, per **turni netti tipo intervista**;
+  - `consecutive` — la traduzione parte solo al **rilascio del PTT** (turni puliti, latenza pari alla durata dell'enunciato).
+  
+  `TRANSLATION_TIMING` imposta il default delle nuove stanze (`release` resta un alias di `consecutive`). Al rilascio del PTT una coda di silenzio fa chiudere l'ultimo segmento nelle modalità a VAD. Sessioni riusate tra enunciati per mantenere il contesto.
 - **Sottotitoli live**: la trascrizione della traduzione arriva in streaming a ogni ascoltatore nella propria lingua.
 - Senza `OPENAI_API_KEY` l'app funziona in modalità **voce originale** (nessuna traduzione, tutti sentono tutto): utile per sviluppo e test senza costi.
 - Il motore è pluggabile: `server/src/translation/provider.ts` definisce l'interfaccia, `openaiRealtime.ts` è l'implementazione attiva.
@@ -74,7 +79,7 @@ babyl/
 | `OPENAI_API_KEY` | — | Abilita la traduzione simultanea; assente = voce originale |
 | `OPENAI_REALTIME_MODEL` | `gpt-realtime` | Modello Realtime da usare |
 | `OPENAI_REALTIME_VOICE` | `marin` | Voce della sintesi |
-| `TRANSLATION_TIMING` | `streaming` | `streaming` = traduce mentre si parla (VAD); `release` = traduce al rilascio del PTT |
+| `TRANSLATION_TIMING` | `streaming` | Tempistica di default delle nuove stanze: `streaming` (simultanea), `interview` (frasi intere), `consecutive` (al rilascio del PTT; `release` è un alias). Modificabile in stanza dal selettore UI. |
 | `STATIC_DIR` | `web/dist` | Cartella della SPA buildata |
 
 ## Roadmap

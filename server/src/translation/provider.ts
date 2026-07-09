@@ -6,7 +6,12 @@
  * traduzione parte al rilascio (commit). Una sessione traduce una coppia di
  * lingue (source → target) e viene riusata per gli enunciati successivi,
  * così il provider mantiene il contesto della conversazione.
+ *
+ * La tempistica (streaming / interview / consecutive) è decisa dalla stanza e
+ * passata a createSession: cambia come il motore segmenta il parlato.
  */
+
+import type { TranslationTiming } from "../../../shared/protocol.ts";
 
 export interface UtteranceCallbacks {
   /** Chunk audio tradotto (PCM16 mono 24 kHz, base64). */
@@ -31,5 +36,6 @@ export interface TranslationProvider {
     sourceLang: string,
     targetLang: string,
     callbacks: UtteranceCallbacks,
+    timing: TranslationTiming,
   ): Promise<TranslationSession>;
 }

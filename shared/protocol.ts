@@ -24,10 +24,29 @@ export interface ChannelState {
   speakerName: string | null;
 }
 
+/**
+ * Tempistica della traduzione, impostazione di stanza condivisa da tutti i
+ * partecipanti:
+ * - "streaming": interpretazione simultanea (VAD sulle pause naturali, la
+ *   voce tradotta parte mentre il parlante prosegue — effetto interprete TV);
+ * - "interview": come streaming ma con pausa di segmentazione più lunga, così
+ *   le pause retoriche non frammentano la frase — turni netti, tipo intervista;
+ * - "consecutive": la traduzione parte solo al rilascio del PTT (turni puliti,
+ *   latenza pari alla durata dell'enunciato).
+ */
+export const TRANSLATION_TIMINGS = [
+  "streaming",
+  "interview",
+  "consecutive",
+] as const;
+export type TranslationTiming = (typeof TRANSLATION_TIMINGS)[number];
+
 export interface TranslationInfo {
   enabled: boolean;
   /** Nome del provider attivo, o "off" (voce originale a tutti). */
   provider: string;
+  /** Tempistica corrente della stanza (condivisa da tutti i partecipanti). */
+  timing: TranslationTiming;
 }
 
 /** Messaggi client → server. */
@@ -37,6 +56,8 @@ export type ClientMessage =
   /** Chunk audio del parlante: PCM16 mono 24 kHz, base64. */
   | { type: "audio"; data: string }
   | { type: "update-lang"; lang: string }
+  /** Cambia la tempistica della traduzione per l'intera stanza. */
+  | { type: "set-timing"; timing: TranslationTiming }
   | { type: "leave" };
 
 /** Messaggi server → client. */
@@ -52,6 +73,8 @@ export type ServerMessage =
   | { type: "peer-left"; peerId: string }
   | { type: "peer-updated"; peer: PeerInfo }
   | { type: "channel"; channel: ChannelState }
+  /** Nuova tempistica della traduzione, valida per tutta la stanza. */
+  | { type: "timing"; timing: TranslationTiming }
   | { type: "ptt-denied"; reason: "busy" }
   /** Audio in arrivo, già nella lingua del destinatario (o voce originale). */
   | { type: "audio"; speakerId: string; data: string }

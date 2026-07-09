@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import type { TranslationTiming } from "../../../shared/protocol.ts";
 import type {
   TranslationProvider,
   TranslationSession,
@@ -9,24 +10,35 @@ const REALTIME_URL = "wss://api.openai.com/v1/realtime";
 const SAMPLE_RATE = 24000;
 
 /**
- * Coda di silenzio (600 ms di PCM16 a zero) accodata al rilascio del PTT in
- * modalità simultanea: fa scattare il VAD sull'ultimo segmento di parlato
- * senza bisogno del commit manuale, che confliggerebbe col VAD server-side.
+ * Coda di silenzio (600 ms di PCM16 a zero) accodata al rilascio del PTT nelle
+ * modalità a VAD: fa scattare il VAD sull'ultimo segmento di parlato senza
+ * bisogno del commit manuale, che confliggerebbe col VAD server-side.
  */
 const TRAILING_SILENCE = Buffer.alloc(SAMPLE_RATE * 0.6 * 2).toString("base64");
 
+/** Configurazione della segmentazione derivata dalla tempistica di stanza. */
+type TurnConfig =
+  | { kind: "vad"; silenceMs: number; prefixMs: number }
+  | { kind: "manual" };
+
+function turnConfigFor(timing: TranslationTiming): TurnConfig {
+  switch (timing) {
+    case "consecutive":
+      // Nessun VAD: si traduce solo al rilascio del PTT (commit manuale).
+      return { kind: "manual" };
+    case "interview":
+      // Pausa di segmentazione più lunga: le pause retoriche di una domanda
+      // non spezzano la frase, così l'ascoltatore riceve enunciati interi.
+      return { kind: "vad", silenceMs: 900, prefixMs: 500 };
+    case "streaming":
+    default:
+      // Simultanea reattiva: segmenta sulle brevi pause naturali del parlato.
+      return { kind: "vad", silenceMs: 500, prefixMs: 300 };
+  }
+}
+
 export class OpenAIRealtimeProvider implements TranslationProvider {
   readonly name = "openai-realtime";
-
-  /**
-   * Tempistica della traduzione:
-   * - "streaming" (default): interpretazione simultanea — il VAD lato
-   *   OpenAI segmenta il parlato sulle pause naturali e la voce tradotta
-   *   parte mentre il parlante sta ancora parlando (effetto interprete TV);
-   * - "release": consecutiva — la traduzione parte solo al rilascio del PTT.
-   */
-  private streaming =
-    (process.env.TRANSLATION_TIMING ?? "streaming") !== "release";
 
   constructor(
     private apiKey: string,
@@ -38,7 +50,10 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     sourceLang: string,
     targetLang: string,
     callbacks: UtteranceCallbacks,
+    timing: TranslationTiming,
   ): Promise<TranslationSession> {
+    const turn = turnConfigFor(timing);
+    const useVad = turn.kind === "vad";
     const ws = new WebSocket(
       `${REALTIME_URL}?model=${encodeURIComponent(this.model)}`,
       {
@@ -80,14 +95,14 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
               type: "audio/pcm",
               rate: SAMPLE_RATE,
             },
-            turn_detection: this.streaming
+            turn_detection: useVad
               ? {
                   // Segmentazione sulle pause naturali del parlato: ogni
                   // segmento viene tradotto mentre il parlante prosegue.
                   type: "server_vad",
                   threshold: 0.5,
-                  prefix_padding_ms: 300,
-                  silence_duration_ms: 500,
+                  prefix_padding_ms: turn.prefixMs,
+                  silence_duration_ms: turn.silenceMs,
                   create_response: true,
                   // La traduzione in corso non va interrotta quando il
                   // parlante riprende: deve accodarsi, non troncarsi.
@@ -153,7 +168,6 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     });
 
     let buffered = false;
-    const streaming = this.streaming;
 
     return {
       sourceLang,
@@ -172,7 +186,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
         if (!buffered) return;
         buffered = false;
 
-        if (streaming) {
+        if (useVad) {
           // Il VAD ha già tradotto i segmenti durante il parlato: qui basta
           // il silenzio in coda per fargli chiudere l'ultimo segmento.
           send({ type: "input_audio_buffer.append", audio: TRAILING_SILENCE });

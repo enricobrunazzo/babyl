@@ -4,6 +4,7 @@ import type {
   PeerInfo,
   ServerMessage,
   TranslationInfo,
+  TranslationTiming,
 } from "../../shared/protocol.ts";
 import type {
   TranslationProvider,
@@ -33,13 +34,30 @@ export class Room {
   constructor(
     readonly id: string,
     private provider: TranslationProvider | null,
+    private timing: TranslationTiming = "streaming",
   ) {}
 
   get translation(): TranslationInfo {
     return {
       enabled: this.provider !== null,
       provider: this.provider?.name ?? "off",
+      timing: this.timing,
     };
+  }
+
+  /**
+   * Cambia la tempistica per l'intera stanza. Le sessioni aperte usano ancora
+   * la vecchia segmentazione: le chiudiamo, così la prossima pressione PTT le
+   * ricrea col nuovo `turn_detection`.
+   */
+  setTiming(timing: TranslationTiming): void {
+    if (timing === this.timing) return;
+    this.timing = timing;
+    for (const session of this.sessions.values()) {
+      void session.then((s) => s.close()).catch(() => {});
+    }
+    this.sessions.clear();
+    this.broadcast({ type: "timing", timing });
   }
 
   get channel(): ChannelState {
@@ -186,7 +204,7 @@ export class Room {
         this.sessions.get(key)?.then((s) => s.close()).catch(() => {});
         this.sessions.delete(key);
       },
-    });
+    }, this.timing);
     this.sessions.set(key, session);
     session.catch((error: Error) => {
       console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);
@@ -223,12 +241,15 @@ export class Room {
 export class RoomManager {
   private rooms = new Map<string, Room>();
 
-  constructor(private provider: TranslationProvider | null = null) {}
+  constructor(
+    private provider: TranslationProvider | null = null,
+    private defaultTiming: TranslationTiming = "streaming",
+  ) {}
 
   get(id: string): Room {
     let room = this.rooms.get(id);
     if (!room) {
-      room = new Room(id, this.provider);
+      room = new Room(id, this.provider, this.defaultTiming);
       this.rooms.set(id, room);
     }
     return room;

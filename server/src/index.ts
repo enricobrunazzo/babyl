@@ -2,7 +2,11 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
-import type { ClientMessage } from "../../shared/protocol.ts";
+import {
+  TRANSLATION_TIMINGS,
+  type ClientMessage,
+  type TranslationTiming,
+} from "../../shared/protocol.ts";
 import { RoomManager } from "./rooms.ts";
 import { createStaticHandler } from "./static.ts";
 import { providerFromEnv } from "./translation/openaiRealtime.ts";
@@ -14,8 +18,17 @@ const MAX_ROOM_LENGTH = 64;
 // vengono terminati, liberando presenza ed eventuale lock PTT.
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
+/** Valida una tempistica arbitraria; "release" resta un alias di "consecutive". */
+function parseTiming(value: string | undefined): TranslationTiming {
+  if (value === "release") return "consecutive";
+  return (TRANSLATION_TIMINGS as readonly string[]).includes(value ?? "")
+    ? (value as TranslationTiming)
+    : "streaming";
+}
+
 const translationProvider = providerFromEnv();
-const rooms = new RoomManager(translationProvider);
+const defaultTiming = parseTiming(process.env.TRANSLATION_TIMING);
+const rooms = new RoomManager(translationProvider, defaultTiming);
 
 const staticHandler = createStaticHandler(
   process.env.STATIC_DIR ??
@@ -112,6 +125,12 @@ function handleMessage(
       room.updateLang(session.peerId, String(message.lang).slice(0, 12));
       break;
     }
+    case "set-timing": {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      if (!room) return;
+      room.setTiming(parseTiming(message.timing));
+      break;
+    }
     case "ptt": {
       const room = session.roomId ? rooms.get(session.roomId) : null;
       if (!room) return;
@@ -139,7 +158,7 @@ httpServer.listen(PORT, () => {
   console.log(`[babyl] server in ascolto su :${PORT} (ws path /ws)`);
   console.log(
     translationProvider
-      ? `[babyl] traduzione attiva: ${translationProvider.name}`
+      ? `[babyl] traduzione attiva: ${translationProvider.name} (tempistica di default: ${defaultTiming})`
       : "[babyl] traduzione DISATTIVATA (OPENAI_API_KEY assente): voce originale a tutti",
   );
 });

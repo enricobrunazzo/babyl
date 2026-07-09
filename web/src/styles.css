@@ -200,6 +200,38 @@ main {
   color: var(--text-dim);
 }
 
+.field-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  max-width: 320px;
+}
+
+.field-inline > span {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.field-inline select {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 8px 10px;
+}
+
+.field-inline select:focus {
+  border-color: var(--accent);
+}
+
+.field-help {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
 .subtitle {
   background: var(--surface);
   border: 1px solid var(--border);

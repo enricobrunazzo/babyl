@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { WebSocket } from "ws";
-import type { PeerInfo, ServerMessage } from "../../shared/protocol.ts";
+import type {
+  PeerInfo,
+  ServerMessage,
+  TranslationTiming,
+} from "../../shared/protocol.ts";
 import { Room, RoomManager } from "./rooms.ts";
 import type {
   TranslationProvider,
@@ -56,6 +60,7 @@ class FakeProvider implements TranslationProvider {
   readonly name = "fake";
   readonly sessions: {
     key: string;
+    timing: TranslationTiming;
     appended: string[];
     commits: number;
     closed: boolean;
@@ -66,9 +71,11 @@ class FakeProvider implements TranslationProvider {
     sourceLang: string,
     targetLang: string,
     callbacks: UtteranceCallbacks,
+    timing: TranslationTiming,
   ): Promise<TranslationSession> {
     const record = {
       key: `${sourceLang}->${targetLang}`,
+      timing,
       appended: [] as string[],
       commits: 0,
       closed: false,
@@ -106,7 +113,11 @@ test("join: welcome con stato traduzione, peer-joined agli altri", () => {
   assert.equal(welcome?.self.nickname, "Anna");
   assert.deepEqual(welcome?.peers.map((p) => p.id), ["a"]);
   assert.equal(welcome?.channel.speakerId, null);
-  assert.deepEqual(welcome?.translation, { enabled: false, provider: "off" });
+  assert.deepEqual(welcome?.translation, {
+    enabled: false,
+    provider: "off",
+    timing: "streaming",
+  });
 
   assert.equal(lastOfType(a, "peer-joined")?.peer.nickname, "Anna");
 });
@@ -258,4 +269,38 @@ test("RoomManager: distrugge le stanze vuote e chiude le sessioni", async () => 
 
   assert.notEqual(manager.get("effimera"), room);
   assert.equal(provider.sessions[0].closed, true);
+});
+
+test("setTiming: sessioni create con la tempistica corrente, cambio la propaga", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("demo", provider, "streaming");
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+
+  assert.equal(lastOfType(b, "welcome")?.translation.timing, "streaming");
+
+  room.requestLock("a");
+  room.handleAudio("a", "ciao");
+  await tick();
+  assert.equal(provider.sessions[0].timing, "streaming");
+
+  // Cambio tempistica: la sessione aperta viene chiusa e il cambio propagato.
+  room.setTiming("interview");
+  await tick();
+  assert.equal(provider.sessions[0].closed, true);
+  assert.equal(lastOfType(a, "timing")?.timing, "interview");
+  assert.equal(lastOfType(b, "timing")?.timing, "interview");
+
+  // La pressione successiva ricrea la sessione con la nuova tempistica.
+  room.handleAudio("a", "ancora");
+  await tick();
+  assert.equal(provider.sessions.length, 2);
+  assert.equal(provider.sessions[1].timing, "interview");
+
+  // Reimpostare lo stesso valore non produce broadcast aggiuntivi.
+  const before = ofType(a, "timing").length;
+  room.setTiming("interview");
+  assert.equal(ofType(a, "timing").length, before);
 });
