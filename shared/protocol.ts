@@ -36,6 +36,7 @@ export type ClientMessage =
   | { type: "ptt"; action: "request" | "release" }
   /** Chunk audio del parlante: PCM16 mono 24 kHz, base64. */
   | { type: "audio"; data: string }
+  | { type: "update-lang"; lang: string }
   | { type: "leave" };
 
 /** Messaggi server → client. */
@@ -49,6 +50,7 @@ export type ServerMessage =
     }
   | { type: "peer-joined"; peer: PeerInfo }
   | { type: "peer-left"; peerId: string }
+  | { type: "peer-updated"; peer: PeerInfo }
   | { type: "channel"; channel: ChannelState }
   | { type: "ptt-denied"; reason: "busy" }
   /** Audio in arrivo, già nella lingua del destinatario (o voce originale). */
