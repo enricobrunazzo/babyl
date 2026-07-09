@@ -16,11 +16,18 @@ function roomFromUrl(): string {
 
 export default function App() {
   const [roomId] = useState(roomFromUrl);
+  // Stanza privata per la modalità single-device: l'audio torna solo al
+  // dispositivo stesso, quindi non deve collidere con una stanza pubblica.
+  const [soloRoom] = useState(
+    () => `solo-${Math.random().toString(36).slice(2, 10)}`,
+  );
   const [profile, setProfile] = useState<Profile | null>(null);
+
+  const activeRoom = profile?.mode === "solo" ? soloRoom : roomId;
 
   return profile ? (
     <Room
-      roomId={roomId}
+      roomId={activeRoom}
       profile={profile}
       onLeave={() => setProfile(null)}
     />

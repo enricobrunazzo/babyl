@@ -51,6 +51,8 @@ export interface RoomState {
   audioFramesReceived: number;
   /** Metriche diagnostiche (popolate solo in modalità debug). */
   metrics: ClientMetrics;
+  /** Direzione corrente in modalità single-device, o null (modalità stanza). */
+  solo: { source: string; target: string } | null;
   error: "mic-denied" | "connection" | null;
 }
 
@@ -61,6 +63,8 @@ export interface RoomOptions {
   lang: string;
   /** Abilita il campionamento delle metriche (pannello ?debug=1). */
   debug?: boolean;
+  /** Modalità single-device: seconda lingua (la prima è `lang`). */
+  soloTarget?: string;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 8;
@@ -127,10 +131,15 @@ export class RoomClient {
       jitterMs: 0,
       framesReceived: 0,
     },
+    solo: null,
     error: null,
   };
 
-  constructor(private opts: RoomOptions) {}
+  constructor(private opts: RoomOptions) {
+    if (opts.soloTarget) {
+      this.state.solo = { source: opts.lang, target: opts.soloTarget };
+    }
+  }
 
   getState = (): RoomState => this.state;
 
@@ -339,6 +348,15 @@ export class RoomClient {
     });
   }
 
+  /** Scambia i due lati della conversazione single-device (toggle A⇄B). */
+  toggleSolo(): void {
+    const solo = this.state.solo;
+    if (!solo) return;
+    const swapped = { source: solo.target, target: solo.source };
+    this.send({ type: "solo-config", ...swapped });
+    this.setState({ solo: swapped });
+  }
+
   /** Cambia la tempistica della traduzione (impostazione di stanza). */
   setTiming(timing: TranslationTiming): void {
     this.send({ type: "set-timing", timing });
@@ -368,6 +386,10 @@ export class RoomClient {
           channel: message.channel,
           translation: message.translation,
         });
+        // Single-device: comunica subito la direzione di traduzione al server.
+        if (this.state.solo) {
+          this.send({ type: "solo-config", ...this.state.solo });
+        }
         break;
       }
       case "peer-joined": {

@@ -43,11 +43,13 @@ const STATUS_LABELS: Record<string, string> = {
 const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
 export function Room({ roomId, profile, onLeave }: Props) {
+  const isSolo = profile.mode === "solo";
   const { client, state } = useRoom({
     room: roomId,
     nickname: profile.nickname,
     lang: profile.lang,
     debug: DEBUG,
+    soloTarget: isSolo ? profile.langB : undefined,
   });
 
   if (state.error === "mic-denied") {
@@ -76,7 +78,7 @@ export function Room({ roomId, profile, onLeave }: Props) {
     <main className="room" data-audio-frames={state.audioFramesReceived}>
       <header className="room-header">
         <div>
-          <h2>{roomId}</h2>
+          <h2>{isSolo ? "Un solo dispositivo" : roomId}</h2>
           <p className={`status status-${state.status}`}>
             {STATUS_LABELS[state.status]}
             {connected && ` · ${participants.length} partecipant${participants.length === 1 ? "e" : "i"}`}
@@ -90,12 +92,12 @@ export function Room({ roomId, profile, onLeave }: Props) {
                 : "Voce originale (traduzione non configurata)"}
             </p>
           )}
-          {connected && selfLanguage && (
+          {connected && !isSolo && selfLanguage && (
             <p className="language-badge">
               Ascolti in: {selfLanguage.flag} {selfLanguage.nativeName}
             </p>
           )}
-          {connected && state.self && (
+          {connected && !isSolo && state.self && (
             <label className="field-inline">
               <span>Lingua di ascolto</span>
               <select
@@ -110,7 +112,7 @@ export function Room({ roomId, profile, onLeave }: Props) {
               </select>
             </label>
           )}
-          {connected && state.translation.enabled && (
+          {connected && !isSolo && state.translation.enabled && (
             <label className="field-inline">
               <span>Tempistica</span>
               <select
@@ -134,6 +136,39 @@ export function Room({ roomId, profile, onLeave }: Props) {
         </button>
       </header>
 
+      {isSolo && state.solo ? (
+        <div className="solo-control">
+          {(() => {
+            const src = languageByCode(state.solo.source);
+            const tgt = languageByCode(state.solo.target);
+            return (
+              <>
+                <p className="solo-direction">
+                  <span className="solo-side speaking">
+                    {src?.flag} {src?.nativeName ?? state.solo.source}
+                  </span>
+                  <span className="solo-arrow" aria-hidden="true">→</span>
+                  <span className="solo-side">
+                    {tgt?.flag} {tgt?.nativeName ?? state.solo.target}
+                  </span>
+                </p>
+                <small className="field-help">
+                  Chi parla ora usa la lingua a sinistra; la traduzione esce al
+                  rilascio del pulsante.
+                </small>
+                <button
+                  type="button"
+                  className="solo-swap"
+                  onClick={() => client.toggleSolo()}
+                  disabled={pttState === "talking"}
+                >
+                  ⇄ Inverti i lati
+                </button>
+              </>
+            );
+          })()}
+        </div>
+      ) : (
       <ul className="participants">
         {participants.map((peer) => {
           const lang = languageByCode(peer.lang);
@@ -160,6 +195,7 @@ export function Room({ roomId, profile, onLeave }: Props) {
           );
         })}
       </ul>
+      )}
 
       {state.subtitle && state.subtitle.text && (
         <div className="subtitle" role="log" aria-live="polite">

@@ -139,6 +139,16 @@ function handleMessage(
       room.setTiming(parseTiming(message.timing));
       break;
     }
+    case "solo-config": {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      if (!room) return;
+      room.setSolo(
+        session.peerId,
+        String(message.source).slice(0, 12),
+        String(message.target).slice(0, 12),
+      );
+      break;
+    }
     case "ptt": {
       const room = session.roomId ? rooms.get(session.roomId) : null;
       if (!room) return;

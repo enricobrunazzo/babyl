@@ -58,6 +58,13 @@ export type ClientMessage =
   | { type: "update-lang"; lang: string }
   /** Cambia la tempistica della traduzione per l'intera stanza. */
   | { type: "set-timing"; timing: TranslationTiming }
+  /**
+   * Modalità single-device (due persone, un telefono): dichiara la direzione
+   * di traduzione dell'enunciato corrente. Il parlante dice `source`, il
+   * server traduce in `target` e rimanda l'audio allo stesso dispositivo.
+   * Inviato all'ingresso e a ogni scambio dei due lati (toggle A⇄B).
+   */
+  | { type: "solo-config"; source: string; target: string }
   | { type: "leave" };
 
 /** Messaggi server → client. */

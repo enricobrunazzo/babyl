@@ -14,6 +14,12 @@ import type {
 interface Peer {
   info: PeerInfo;
   socket: WebSocket;
+  /**
+   * Modalità single-device: direzione di traduzione dell'enunciato corrente.
+   * Se presente, l'audio del peer viene tradotto source→target e rimandato al
+   * peer stesso invece che instradato agli altri ascoltatori della stanza.
+   */
+  solo?: { source: string; target: string };
 }
 
 /** Secondi/ms di audio PCM16 24 kHz rappresentati da un payload base64. */
@@ -162,6 +168,13 @@ export class Room {
     this.broadcast({ type: "peer-updated", peer: peer.info });
   }
 
+  /** Attiva/aggiorna la modalità single-device per il peer. */
+  setSolo(peerId: string, source: string, target: string): void {
+    const peer = this.peers.get(peerId);
+    if (!peer) return;
+    peer.solo = { source, target };
+  }
+
   /** Concede il lock solo se il canale è libero (o già del richiedente). */
   requestLock(peerId: string): void {
     if (this.speakerId !== null && this.speakerId !== peerId) {
@@ -189,6 +202,17 @@ export class Room {
     if (!speaker) return;
 
     this.mBytesIn += data.length;
+
+    // Single-device: traduci source→target e rimanda l'audio al mittente,
+    // senza toccare l'instradamento multi-peer della stanza.
+    if (speaker.solo && this.provider) {
+      const { source, target } = speaker.solo;
+      this.pairStat(`${source}->${target}`).inMs += base64PcmDurationMs(data);
+      void this.soloSessionFor(peerId, source, target)
+        .then((session) => session.appendAudio(data))
+        .catch(() => {});
+      return;
+    }
 
     for (const peer of this.peers.values()) {
       if (peer.info.id === peerId) continue;
@@ -277,6 +301,53 @@ export class Room {
         this.sessions.delete(key);
       },
     }, this.timing);
+    this.sessions.set(key, session);
+    session.catch((error: Error) => {
+      console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);
+      this.sessions.delete(key);
+    });
+    return session;
+  }
+
+  /**
+   * Sessione single-device: traduce source→target e rimanda l'audio (e i
+   * sottotitoli) allo stesso peer. Timing sempre "consecutive": la voce
+   * tradotta arriva al rilascio del PTT, quando il microfono è già chiuso —
+   * così non si innesca il loop acustico mic↔altoparlante sullo stesso device.
+   */
+  private soloSessionFor(
+    peerId: string,
+    source: string,
+    target: string,
+  ): Promise<TranslationSession> {
+    const key = `solo:${peerId}:${source}->${target}`;
+    let session = this.sessions.get(key);
+    if (session) return session;
+
+    session = this.provider!.createSession(
+      source,
+      target,
+      {
+        onAudio: (chunk) => {
+          this.pairStat(`${source}->${target}`).outMs +=
+            base64PcmDurationMs(chunk);
+          this.send(peerId, { type: "audio", speakerId: peerId, data: chunk });
+          this.mBytesOut += chunk.length;
+        },
+        onTranscript: (text, final) => {
+          this.send(peerId, { type: "transcript", speakerId: peerId, text, final });
+        },
+        onError: (error) => {
+          console.error(
+            `[babyl] traduzione ${key} in stanza "${this.id}":`,
+            error.message,
+          );
+          this.sessions.get(key)?.then((s) => s.close()).catch(() => {});
+          this.sessions.delete(key);
+        },
+      },
+      "consecutive",
+    );
     this.sessions.set(key, session);
     session.catch((error: Error) => {
       console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);

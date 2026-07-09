@@ -67,6 +67,12 @@ babyl/
 - Senza `OPENAI_API_KEY` l'app funziona in modalità **voce originale** (nessuna traduzione, tutti sentono tutto): utile per sviluppo e test senza costi.
 - Il motore è pluggabile: `server/src/translation/provider.ts` definisce l'interfaccia, `openaiRealtime.ts` è l'implementazione attiva.
 
+**Modalità single-device (un telefono, due persone)**
+- Scelta in onboarding accanto alla modalità stanza: si indicano **due lingue** (lato A e lato B) invece della sola lingua d'ascolto. La modalità stanza multi-dispositivo resta identica e invariata.
+- Le due persone parlano **a turno** sullo stesso dispositivo: si tiene premuto il PTT, si parla nella lingua del lato attivo e — al rilascio — la traduzione esce **a voce alta dallo stesso telefono**. Il pulsante **⇄ Inverti i lati** scambia sorgente e destinazione per il turno successivo.
+- **Riuso dell'architettura**: è una stanza privata di un solo peer; il server traduce sorgente→destinazione e rimanda l'audio al mittente. La tempistica è forzata a **consecutiva** (voce tradotta al rilascio, quando il microfono è già chiuso) così non si innesca il loop acustico mic↔altoparlante.
+- Il rilevamento automatico della lingua è un raffinamento successivo: oggi il lato attivo si sceglie col toggle (deterministico, nessun errore su frasi brevi).
+
 **Resilienza**
 - Riconnessione automatica del client con backoff esponenziale (rete mobile instabile).
 - Heartbeat WebSocket lato server: i client spariti senza chiudere la connessione (telefono bloccato, cambio rete) vengono terminati, liberando presenza ed eventuale lock PTT.

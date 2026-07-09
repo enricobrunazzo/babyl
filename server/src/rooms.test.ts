@@ -305,6 +305,39 @@ test("setTiming: sessioni create con la tempistica corrente, cambio la propaga",
   assert.equal(ofType(a, "timing").length, before);
 });
 
+test("single-device: traduce source→target e rimanda l'audio al mittente", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("solo", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.setSolo("a", "it", "en");
+
+  room.requestLock("a");
+  room.handleAudio("a", "ciao");
+  await tick();
+
+  // Il tradotto torna al mittente stesso (speakerId = a), in consecutiva.
+  assert.deepEqual(
+    ofType(a, "audio").map((m) => m.data),
+    ["CIAO"],
+  );
+  assert.equal(ofType(a, "audio")[0].speakerId, "a");
+  assert.equal(provider.sessions.length, 1);
+  assert.equal(provider.sessions[0].key, "it->en");
+  assert.equal(provider.sessions[0].timing, "consecutive");
+  // Il ramo solo è isolato: gli altri peer non ricevono nulla.
+  assert.equal(ofType(b, "audio").length, 0);
+
+  room.releaseLock("a");
+  await tick();
+  assert.equal(provider.sessions[0].commits, 1);
+
+  const pair = room.stats.pairs["it->en"];
+  assert.ok(pair && pair.inMs > 0 && pair.outMs > 0);
+});
+
 test("metrics: conta byte e ms d'inferenza, i totali sopravvivono alla stanza", async () => {
   const provider = new FakeProvider();
   const manager = new RoomManager(provider);
