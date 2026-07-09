@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useRoom } from "../hooks/useRoom";
 import { languageByCode, LANGUAGES } from "../lib/languages";
 import type { TranslationTiming } from "../../../shared/protocol";
 import type { Profile } from "./Onboarding";
 import { PTTButton } from "./PTTButton";
+import { QRCode } from "./QRCode";
 
 /** Preset di tempistica offerti in stanza (condivisi da tutti i partecipanti). */
 const TIMING_OPTIONS: { value: TranslationTiming; label: string; hint: string }[] =
@@ -44,6 +46,27 @@ const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
 export function Room({ roomId, profile, onLeave }: Props) {
   const isSolo = profile.mode === "solo";
+  const [showShare, setShowShare] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const shareUrl = `${location.origin}/?room=${encodeURIComponent(roomId)}`;
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const nativeShare = async () => {
+    try {
+      await navigator.share({ title: "babyl", text: "Entra nella stanza", url: shareUrl });
+    } catch {
+      // Condivisione annullata o non supportata: il pannello resta aperto.
+    }
+  };
   const { client, state } = useRoom({
     room: roomId,
     nickname: profile.nickname,
@@ -131,10 +154,61 @@ export function Room({ roomId, profile, onLeave }: Props) {
             </label>
           )}
         </div>
-        <button type="button" className="leave-button" onClick={onLeave}>
-          Esci
-        </button>
+        <div className="header-actions">
+          {!isSolo && (
+            <button
+              type="button"
+              className="share-button"
+              onClick={() => setShowShare(true)}
+            >
+              Condividi
+            </button>
+          )}
+          <button type="button" className="leave-button" onClick={onLeave}>
+            Esci
+          </button>
+        </div>
       </header>
+
+      {showShare && !isSolo && (
+        <div
+          className="share-overlay"
+          role="dialog"
+          aria-label="Condividi la stanza"
+          onClick={() => setShowShare(false)}
+        >
+          <div className="share-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>Invita nella stanza</h3>
+            <p className="share-hint">
+              Inquadra il QR o condividi il link: chi entra è subito in stanza,
+              senza installare nulla.
+            </p>
+            <QRCode text={shareUrl} />
+            <code className="share-url">{shareUrl}</code>
+            <div className="share-actions">
+              <button type="button" className="enter-button" onClick={copyLink}>
+                {copied ? "Copiato ✓" : "Copia link"}
+              </button>
+              {typeof navigator.share === "function" && (
+                <button
+                  type="button"
+                  className="share-button"
+                  onClick={nativeShare}
+                >
+                  Condividi…
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              className="share-close"
+              onClick={() => setShowShare(false)}
+            >
+              Chiudi
+            </button>
+          </div>
+        </div>
+      )}
 
       {isSolo && state.solo ? (
         <div className="solo-control">
