@@ -6,6 +6,7 @@ import type {
 } from "./provider.ts";
 
 const REALTIME_URL = "wss://api.openai.com/v1/realtime";
+const SAMPLE_RATE = 24000;
 
 export class OpenAIRealtimeProvider implements TranslationProvider {
   readonly name = "openai-realtime";
@@ -60,12 +61,14 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
           input: {
             format: {
               type: "audio/pcm",
+              rate: SAMPLE_RATE,
             },
             turn_detection: null,
           },
           output: {
             format: {
               type: "audio/pcm",
+              rate: SAMPLE_RATE,
             },
             voice: this.voice,
           },
