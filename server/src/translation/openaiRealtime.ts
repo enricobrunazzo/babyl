@@ -8,22 +8,24 @@ import type {
 const REALTIME_URL = "wss://api.openai.com/v1/realtime";
 
 /**
- * Provider basato sulla OpenAI Realtime API (speech-to-speech nativo).
+ * Provider basato sulla OpenAI Realtime API GA.
  *
- * Il PTT half-duplex si sposa con la modalità manuale dell'API: niente VAD
- * lato provider — accumuliamo l'audio con input_audio_buffer.append e al
- * rilascio del pulsante inviamo commit + response.create. L'audio tradotto
- * torna in streaming (PCM16 24 kHz) insieme alla trascrizione.
+ * Flusso:
+ * - appendAudio(): invia PCM16 base64 al buffer input_audio_buffer
+ * - commit(): chiude l'enunciato PTT e chiede una risposta audio+testo
+ * - l'output arriva in streaming come audio PCM16 e transcript
  *
- * Config: OPENAI_API_KEY (obbligatoria), OPENAI_REALTIME_MODEL (default
- * gpt-realtime-mini), OPENAI_REALTIME_VOICE (default marin).
+ * Config:
+ * - OPENAI_API_KEY (obbligatoria)
+ * - OPENAI_REALTIME_MODEL (default: gpt-realtime)
+ * - OPENAI_REALTIME_VOICE (default: marin)
  */
 export class OpenAIRealtimeProvider implements TranslationProvider {
   readonly name = "openai-realtime";
 
   constructor(
     private apiKey: string,
-    private model = process.env.OPENAI_REALTIME_MODEL ?? "gpt-realtime-mini",
+    private model = process.env.OPENAI_REALTIME_MODEL ?? "gpt-realtime",
     private voice = process.env.OPENAI_REALTIME_VOICE ?? "marin",
   ) {}
 
@@ -32,19 +34,21 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     targetLang: string,
     callbacks: UtteranceCallbacks,
   ): Promise<TranslationSession> {
-    const ws = new WebSocket(`${REALTIME_URL}?model=${this.model}`, {
+    const ws = new WebSocket(`${REALTIME_URL}?model=${encodeURIComponent(this.model)}`, {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
-        "OpenAI-Beta": "realtime=v1",
       },
     });
 
     const instructions =
       `You are a professional simultaneous interpreter. ` +
-      `The user speaks in "${sourceLang}". Translate everything they say ` +
-      `into "${targetLang}" and speak ONLY the translation, preserving tone ` +
-      `and intent. Never answer questions, never add comments, never omit ` +
-      `content: you are a pure interpreter.`;
+      `The speaker talks in "${sourceLang}". ` +
+      `Translate everything into "${targetLang}". ` +
+      `Speak only the translation. ` +
+      `Do not answer questions. ` +
+      `Do not add comments. ` +
+      `Do not summarize. ` +
+      `Preserve tone, meaning, and intent.`;
 
     await new Promise<void>((resolve, reject) => {
       ws.once("open", () => resolve());
@@ -52,43 +56,66 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     });
 
     const send = (payload: Record<string, unknown>) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+      }
     };
 
     send({
       type: "session.update",
       session: {
+        type: "realtime",
         modalities: ["audio", "text"],
         instructions,
-        voice: this.voice,
-        input_audio_format: "pcm16",
-        output_audio_format: "pcm16",
-        // Niente VAD: gli enunciati sono delimitati dal PTT (commit manuale).
-        turn_detection: null,
+        audio: {
+          input: {
+            format: {
+              type: "audio/pcm",
+            },
+            turn_detection: null,
+          },
+          output: {
+            format: {
+              type: "audio/pcm",
+            },
+            voice: this.voice,
+          },
+        },
       },
     });
 
     ws.on("message", (raw) => {
       let event: { type?: string; [key: string]: unknown };
+
       try {
         event = JSON.parse(raw.toString());
       } catch {
         return;
       }
+
       switch (event.type) {
-        // Nomi sia della versione beta sia della GA dell'API.
-        case "response.audio.delta":
         case "response.output_audio.delta":
-          callbacks.onAudio(String(event.delta ?? ""));
+        case "response.audio.delta": {
+          const delta = typeof event.delta === "string" ? event.delta : "";
+          if (delta) callbacks.onAudio(delta);
           break;
-        case "response.audio_transcript.delta":
+        }
+
         case "response.output_audio_transcript.delta":
-          callbacks.onTranscript(String(event.delta ?? ""), false);
+        case "response.audio_transcript.delta": {
+          const delta = typeof event.delta === "string" ? event.delta : "";
+          if (delta) callbacks.onTranscript(delta, false);
           break;
-        case "response.audio_transcript.done":
+        }
+
         case "response.output_audio_transcript.done":
-          callbacks.onTranscript(String(event.transcript ?? ""), true);
+        case "response.audio_transcript.done": {
+          const transcript =
+            typeof event.transcript === "string" ? event.transcript : "";
+          callbacks.onTranscript(transcript, true);
           break;
+        }
+
         case "error": {
           const err = event.error as { message?: string } | undefined;
           callbacks.onError(
@@ -99,31 +126,45 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       }
     });
 
-    ws.on("close", () => {
-      // La stanza ricreerà la sessione al prossimo enunciato se serve.
+    ws.on("error", (error) => {
+      callbacks.onError(error as Error);
     });
-    ws.on("error", (error) => callbacks.onError(error as Error));
 
     let buffered = false;
 
     return {
       sourceLang,
       targetLang,
+
       appendAudio(base64Pcm: string) {
+        if (!base64Pcm) return;
         buffered = true;
-        send({ type: "input_audio_buffer.append", audio: base64Pcm });
+        send({
+          type: "input_audio_buffer.append",
+          audio: base64Pcm,
+        });
       },
+
       commit() {
         if (!buffered) return;
         buffered = false;
+
         send({ type: "input_audio_buffer.commit" });
         send({
           type: "response.create",
-          response: { modalities: ["audio", "text"] },
+          response: {
+            modalities: ["audio", "text"],
+          },
         });
       },
+
       close() {
-        ws.close();
+        if (
+          ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING
+        ) {
+          ws.close();
+        }
       },
     };
   }
