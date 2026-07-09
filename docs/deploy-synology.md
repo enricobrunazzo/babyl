@@ -100,12 +100,49 @@ l'onboarding di Babyl.
 4. Tieni premuto il pulsante: sull'altro dispositivo deve diventare grigio
    con *«Nome» sta parlando…* e devi sentire l'audio
 
-## Aggiornamenti
+## Aggiornamenti automatici
 
-A ogni push su `main` GitHub Actions pubblica una nuova `latest`. Sul NAS:
+A ogni push su `main` GitHub Actions pubblica una nuova `latest`. Aggiungendo
+al progetto il servizio **watchtower** (già incluso nel `docker-compose.yml`
+del repo), il NAS si aggiorna da solo:
+
+```yaml
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: babyl-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
+```
+
+e, nel servizio `babyl`, l'etichetta che lo autorizza all'aggiornamento:
+
+```yaml
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+```
+
+Watchtower controlla GHCR ogni 5 minuti (`WATCHTOWER_POLL_INTERVAL`), scarica
+la nuova immagine, ricrea il container preservando le variabili d'ambiente
+(API key inclusa) ed elimina le immagini vecchie (`WATCHTOWER_CLEANUP`).
+Tempo tipico da push a NAS aggiornato: 5–10 minuti (build GitHub + polling).
+
+Note:
+- il montaggio di `/var/run/docker.sock` dà a watchtower il controllo di
+  Docker sul NAS; `WATCHTOWER_LABEL_ENABLE=true` lo limita ai soli container
+  etichettati, quindi non tocca gli altri tuoi container;
+- l'aggiornamento riavvia `babyl`: le stanze attive in quel momento si
+  riconnettono da sole (il client ha la riconnessione automatica), ma chi
+  stava parlando perde l'enunciato in corso.
+
+### Aggiornamento manuale (alternativa)
 
 - Container Manager → **Progetto** → `babyl` → **Azione** → **Pulisci e
-  ricostruisci** (fa pull della nuova immagine e ricrea il container), oppure
+  ricostruisci**, oppure
 - via SSH: `docker compose -f /volume1/docker/babyl/docker-compose.yml pull
   && docker compose -f /volume1/docker/babyl/docker-compose.yml up -d`
 

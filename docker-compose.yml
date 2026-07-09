@@ -1,5 +1,6 @@
 # Deploy su Synology (Container Manager → Progetto) o qualsiasi host Docker.
-# L'immagine è pubblicata da GitHub Actions a ogni push su main.
+# L'immagine è pubblicata da GitHub Actions a ogni push su main; watchtower
+# la rileva e aggiorna il container automaticamente (niente passi manuali).
 # Il reverse proxy punta a http://<NAS>:8787 (HTTP + WebSocket su /ws).
 services:
   babyl:
@@ -19,3 +20,18 @@ services:
       # Opzionali:
       # - OPENAI_REALTIME_MODEL=gpt-realtime-mini
       # - OPENAI_REALTIME_VOICE=marin
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  # Aggiornamento automatico: controlla GHCR ogni 5 minuti e ricrea i soli
+  # container con l'etichetta watchtower.enable (qui: babyl).
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: babyl-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=300
