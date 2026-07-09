@@ -256,6 +256,13 @@ export class RoomClient {
     this.send({ type: "ptt", action: "release" });
   }
 
+  updateLanguage(lang: string): void {
+    this.send({ type: "update-lang", lang });
+    this.setState({
+      self: this.state.self ? { ...this.state.self, lang } : this.state.self,
+    });
+  }
+
   pttState(): PttState {
     const { channel, self } = this.state;
     if (channel.speakerId === null) return "free";
@@ -287,6 +294,18 @@ export class RoomClient {
       case "peer-left": {
         this.setState({
           peers: this.state.peers.filter((p) => p.id !== message.peerId),
+        });
+        break;
+      }
+      case "peer-updated": {
+        this.setState({
+          self:
+            this.state.self?.id === message.peer.id
+              ? message.peer
+              : this.state.self,
+          peers: this.state.peers.map((p) =>
+            p.id === message.peer.id ? message.peer : p,
+          ),
         });
         break;
       }
