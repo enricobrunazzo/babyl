@@ -44,9 +44,10 @@ export function Room({ roomId, profile, onLeave }: Props) {
   const participants = state.self ? [state.self, ...state.peers] : state.peers;
   const pttState = client.pttState();
   const connected = state.status === "connected";
+  const speaker = participants.find((p) => p.id === state.subtitle?.speakerId);
 
   return (
-    <main className="room">
+    <main className="room" data-audio-frames={state.audioFramesReceived}>
       <header className="room-header">
         <div>
           <h2>{roomId}</h2>
@@ -54,6 +55,15 @@ export function Room({ roomId, profile, onLeave }: Props) {
             {STATUS_LABELS[state.status]}
             {connected && ` · ${participants.length} partecipant${participants.length === 1 ? "e" : "i"}`}
           </p>
+          {connected && (
+            <p
+              className={`translation-badge ${state.translation.enabled ? "on" : "off"}`}
+            >
+              {state.translation.enabled
+                ? "Traduzione simultanea attiva"
+                : "Voce originale (traduzione non configurata)"}
+            </p>
+          )}
         </div>
         <button type="button" className="leave-button" onClick={onLeave}>
           Esci
@@ -81,6 +91,13 @@ export function Room({ roomId, profile, onLeave }: Props) {
           );
         })}
       </ul>
+
+      {state.subtitle && state.subtitle.text && (
+        <div className="subtitle" role="log" aria-live="polite">
+          {speaker && <span className="subtitle-speaker">{speaker.nickname}</span>}
+          <p>{state.subtitle.text}</p>
+        </div>
+      )}
 
       <PTTButton
         state={pttState}

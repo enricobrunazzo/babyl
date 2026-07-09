@@ -3,8 +3,9 @@ import type {
   ClientMessage,
   PeerInfo,
   ServerMessage,
-  SignalPayload,
+  TranslationInfo,
 } from "../../../shared/protocol";
+import { base64PcmToFloat, floatToBase64Pcm, SAMPLE_RATE } from "./pcm";
 
 export type ConnectionStatus =
   | "idle"
@@ -17,11 +18,21 @@ export type ConnectionStatus =
 
 export type PttState = "free" | "talking" | "blocked";
 
+export interface Subtitle {
+  speakerId: string;
+  text: string;
+  final: boolean;
+}
+
 export interface RoomState {
   status: ConnectionStatus;
   self: PeerInfo | null;
   peers: PeerInfo[];
   channel: ChannelState;
+  translation: TranslationInfo;
+  subtitle: Subtitle | null;
+  /** Contatore diagnostico dei chunk audio ricevuti (usato anche nei test). */
+  audioFramesReceived: number;
   error: "mic-denied" | "connection" | null;
 }
 
@@ -32,38 +43,20 @@ export interface RoomOptions {
   lang: string;
 }
 
-/**
- * ICE server configurabili via VITE_ICE_SERVERS (array JSON, es. per TURN:
- * [{"urls":"turn:turn.babyl.it:3478","username":"u","credential":"c"}]).
- * Default: solo STUN pubblico, sufficiente per NAT non restrittivi.
- */
-function iceServers(): RTCIceServer[] {
-  const raw = import.meta.env.VITE_ICE_SERVERS as string | undefined;
-  if (raw) {
-    try {
-      return JSON.parse(raw) as RTCIceServer[];
-    } catch {
-      console.warn("[babyl] VITE_ICE_SERVERS non è JSON valido, uso default");
-    }
-  }
-  return [{ urls: "stun:stun.l.google.com:19302" }];
-}
-
 const MAX_RECONNECT_ATTEMPTS = 8;
+/** ~100 ms di audio per chunk: buon compromesso latenza/overhead. */
+const CAPTURE_CHUNK_SAMPLES = 2400;
 
 /**
- * Client di stanza: WebSocket di segnalazione + mesh WebRTC audio.
+ * Client di stanza: WebSocket per segnalazione E audio (half-duplex).
  *
- * Half-Duplex: la traccia microfono locale esiste sempre sulle connessioni
- * (nessuna rinegoziazione al PTT) ma è abilitata solo quando il server
- * concede il lock. Mentre si trasmette, gli stream in ricezione vengono
- * silenziati per prevenire loop acustici.
+ * Il microfono viene catturato via AudioWorklet a 24 kHz e inviato al server
+ * solo mentre il server conferma il lock PTT; l'audio in arrivo (tradotto o
+ * voce originale) è PCM16 24 kHz riprodotto via Web Audio. Mentre si
+ * trasmette la riproduzione è sospesa per prevenire loop acustici.
  */
 export class RoomClient {
   private ws: WebSocket | null = null;
-  private pcs = new Map<string, RTCPeerConnection>();
-  private audioEls = new Map<string, HTMLAudioElement>();
-  private pendingIce = new Map<string, RTCIceCandidateInit[]>();
   private localStream: MediaStream | null = null;
   private listeners = new Set<() => void>();
   private disposed = false;
@@ -72,11 +65,24 @@ export class RoomClient {
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Cattura microfono
+  private captureCtx: AudioContext | null = null;
+  private transmitting = false;
+  private pendingSamples: Float32Array[] = [];
+  private pendingLength = 0;
+
+  // Riproduzione
+  private playCtx: AudioContext | null = null;
+  private playCursor = 0;
+
   private state: RoomState = {
     status: "idle",
     self: null,
     peers: [],
     channel: { speakerId: null, speakerName: null },
+    translation: { enabled: false, provider: "off" },
+    subtitle: null,
+    audioFramesReceived: 0,
     error: null,
   };
 
@@ -113,18 +119,63 @@ export class RoomClient {
       }
       return;
     }
-    // connect() superata da una successiva (o disconnect): abbandona.
     if (this.disposed || generation !== this.generation) {
       for (const track of stream.getTracks()) track.stop();
       return;
     }
     this.localStream = stream;
-    // Il microfono resta muto finché il server non concede il lock PTT.
-    for (const track of stream.getAudioTracks()) {
-      track.enabled = false;
-    }
 
+    try {
+      await this.initCapture(stream);
+    } catch (error) {
+      console.warn("[babyl] inizializzazione cattura audio fallita", error);
+    }
+    if (this.disposed || generation !== this.generation) return;
+
+    this.setState({ status: "connecting" });
     this.openSocket();
+  }
+
+  /** Cattura a 24 kHz: il browser ricampiona il microfono per noi. */
+  private async initCapture(stream: MediaStream): Promise<void> {
+    const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
+    this.captureCtx = ctx;
+    await ctx.audioWorklet.addModule("/pcm-capture-worklet.js");
+    const source = ctx.createMediaStreamSource(stream);
+    const worklet = new AudioWorkletNode(ctx, "pcm-capture", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      channelCount: 1,
+    });
+    worklet.port.onmessage = (event) => {
+      this.onCaptureFrame(event.data as Float32Array);
+    };
+    // Uscita silenziata: serve solo a mantenere attivo il nodo nel grafo.
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    source.connect(worklet);
+    worklet.connect(mute);
+    mute.connect(ctx.destination);
+  }
+
+  private onCaptureFrame(frame: Float32Array): void {
+    if (!this.transmitting) return;
+    this.pendingSamples.push(frame);
+    this.pendingLength += frame.length;
+    if (this.pendingLength >= CAPTURE_CHUNK_SAMPLES) this.flushCapture();
+  }
+
+  private flushCapture(): void {
+    if (this.pendingLength === 0) return;
+    const merged = new Float32Array(this.pendingLength);
+    let offset = 0;
+    for (const chunk of this.pendingSamples) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    this.pendingSamples = [];
+    this.pendingLength = 0;
+    this.send({ type: "audio", data: floatToBase64Pcm(merged) });
   }
 
   private openSocket(): void {
@@ -143,7 +194,7 @@ export class RoomClient {
       });
     };
     ws.onmessage = (event) => {
-      void this.handleMessage(JSON.parse(event.data) as ServerMessage);
+      this.handleMessage(JSON.parse(event.data) as ServerMessage);
     };
     ws.onclose = () => {
       if (this.ws === ws) this.ws = null;
@@ -154,13 +205,9 @@ export class RoomClient {
     ws.onerror = () => {};
   }
 
-  /**
-   * Riconnessione con backoff esponenziale (rete mobile instabile).
-   * La mesh WebRTC viene ricostruita da zero al rientro: il server assegna
-   * un nuovo peerId e rimanda welcome con il roster corrente.
-   */
+  /** Riconnessione con backoff esponenziale (rete mobile instabile). */
   private scheduleReconnect(): void {
-    for (const peerId of [...this.pcs.keys()]) this.closePeer(peerId);
+    this.setTransmitting(false);
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       this.setState({ status: "closed", error: "connection" });
       return;
@@ -171,6 +218,7 @@ export class RoomClient {
       status: "reconnecting",
       peers: [],
       channel: { speakerId: null, speakerName: null },
+      subtitle: null,
     });
     this.reconnectTimer = setTimeout(() => this.openSocket(), delay);
   }
@@ -186,25 +234,26 @@ export class RoomClient {
     }
     this.ws?.close();
     this.ws = null;
-    for (const peerId of [...this.pcs.keys()]) this.closePeer(peerId);
-    this.stopLocalStream();
+    for (const track of this.localStream?.getTracks() ?? []) track.stop();
+    this.localStream = null;
+    void this.captureCtx?.close().catch(() => {});
+    this.captureCtx = null;
+    void this.playCtx?.close().catch(() => {});
+    this.playCtx = null;
   }
 
   /** Richiede il lock del canale (pressione del pulsante PTT). */
   pttDown(): void {
+    // I context audio partono sospesi finché non c'è un gesto utente.
+    void this.captureCtx?.resume().catch(() => {});
+    void this.playCtx?.resume().catch(() => {});
     this.send({ type: "ptt", action: "request" });
   }
 
   /** Rilascia il lock del canale (rilascio del pulsante PTT). */
   pttUp(): void {
+    this.flushCapture();
     this.send({ type: "ptt", action: "release" });
-  }
-
-  /** Stato delle connessioni WebRTC verso i peer (diagnostica). */
-  connectionStates(): Record<string, RTCPeerConnectionState> {
-    return Object.fromEntries(
-      [...this.pcs].map(([id, pc]) => [id, pc.connectionState]),
-    );
   }
 
   pttState(): PttState {
@@ -219,7 +268,7 @@ export class RoomClient {
     }
   }
 
-  private async handleMessage(message: ServerMessage): Promise<void> {
+  private handleMessage(message: ServerMessage): void {
     switch (message.type) {
       case "welcome": {
         this.setState({
@@ -227,12 +276,8 @@ export class RoomClient {
           self: message.self,
           peers: message.peers,
           channel: message.channel,
+          translation: message.translation,
         });
-        // Il nuovo arrivato apre le connessioni verso i peer già presenti:
-        // un solo lato inizia la negoziazione, quindi niente glare SDP.
-        for (const peer of message.peers) {
-          await this.createPeer(peer.id, true);
-        }
         break;
       }
       case "peer-joined": {
@@ -240,7 +285,6 @@ export class RoomClient {
         break;
       }
       case "peer-left": {
-        this.closePeer(message.peerId);
         this.setState({
           peers: this.state.peers.filter((p) => p.id !== message.peerId),
         });
@@ -255,8 +299,24 @@ export class RoomClient {
         // Bloccato (grigio) per tutti i non-parlanti.
         break;
       }
-      case "signal": {
-        await this.handleSignal(message.from, message.data);
+      case "audio": {
+        this.setState({
+          audioFramesReceived: this.state.audioFramesReceived + 1,
+        });
+        if (!this.transmitting) this.enqueuePlayback(message.data);
+        break;
+      }
+      case "transcript": {
+        this.setState({
+          subtitle: {
+            speakerId: message.speakerId,
+            // I delta parziali si accumulano; il testo finale li sostituisce.
+            text: message.final
+              ? message.text
+              : this.partialSubtitleText(message.speakerId) + message.text,
+            final: message.final,
+          },
+        });
         break;
       }
       case "error": {
@@ -266,128 +326,52 @@ export class RoomClient {
     }
   }
 
+  private partialSubtitleText(speakerId: string): string {
+    const current = this.state.subtitle;
+    if (current && !current.final && current.speakerId === speakerId) {
+      return current.text;
+    }
+    return "";
+  }
+
   private applyChannel(channel: ChannelState): void {
-    this.setState({ channel });
-    const transmitting = channel.speakerId === this.state.self?.id;
-    for (const track of this.localStream?.getAudioTracks() ?? []) {
-      track.enabled = transmitting;
-    }
-    for (const el of this.audioEls.values()) {
-      el.muted = transmitting;
-    }
-  }
-
-  private async createPeer(
-    peerId: string,
-    initiator: boolean,
-  ): Promise<RTCPeerConnection> {
-    const pc = new RTCPeerConnection({ iceServers: iceServers() });
-    this.pcs.set(peerId, pc);
-    for (const track of this.localStream?.getTracks() ?? []) {
-      pc.addTrack(track, this.localStream!);
-    }
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        this.sendSignal(peerId, {
-          kind: "ice",
-          candidate: event.candidate.toJSON(),
-        });
-      }
-    };
-    pc.ontrack = (event) => {
-      this.attachRemoteStream(peerId, event.streams[0]);
-    };
-    if (initiator) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      this.sendSignal(peerId, { kind: "offer", sdp: offer.sdp! });
-    }
-    return pc;
-  }
-
-  private async handleSignal(
-    from: string,
-    data: SignalPayload,
-  ): Promise<void> {
-    try {
-      if (data.kind === "offer") {
-        const pc = this.pcs.get(from) ?? (await this.createPeer(from, false));
-        await pc.setRemoteDescription({ type: "offer", sdp: data.sdp });
-        await this.flushPendingIce(from, pc);
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        this.sendSignal(from, { kind: "answer", sdp: answer.sdp! });
-      } else if (data.kind === "answer") {
-        const pc = this.pcs.get(from);
-        if (!pc) return;
-        await pc.setRemoteDescription({ type: "answer", sdp: data.sdp });
-        await this.flushPendingIce(from, pc);
-      } else if (data.kind === "ice") {
-        const pc = this.pcs.get(from);
-        if (pc?.remoteDescription) {
-          await pc.addIceCandidate(data.candidate as RTCIceCandidateInit);
-        } else {
-          // Trickle ICE arrivato prima della descrizione remota: in coda.
-          const queue = this.pendingIce.get(from) ?? [];
-          queue.push(data.candidate as RTCIceCandidateInit);
-          this.pendingIce.set(from, queue);
-        }
-      }
-    } catch (error) {
-      console.warn("[babyl] errore segnalazione WebRTC", error);
-    }
-  }
-
-  private async flushPendingIce(
-    peerId: string,
-    pc: RTCPeerConnection,
-  ): Promise<void> {
-    const queue = this.pendingIce.get(peerId);
-    if (!queue) return;
-    this.pendingIce.delete(peerId);
-    for (const candidate of queue) {
-      try {
-        await pc.addIceCandidate(candidate);
-      } catch (error) {
-        console.warn("[babyl] candidato ICE scartato", error);
-      }
-    }
-  }
-
-  private sendSignal(to: string, data: SignalPayload): void {
-    this.send({ type: "signal", to, data });
-  }
-
-  private attachRemoteStream(peerId: string, stream: MediaStream): void {
-    let el = this.audioEls.get(peerId);
-    if (!el) {
-      el = new Audio();
-      el.autoplay = true;
-      this.audioEls.set(peerId, el);
-    }
-    el.srcObject = stream;
-    el.muted = this.state.channel.speakerId === this.state.self?.id;
-    void el.play().catch(() => {
-      // L'autoplay è sbloccato dal gesto ENTRA; eventuali rifiuti
-      // si risolvono alla prima interazione successiva.
+    const startingUtterance =
+      channel.speakerId !== null &&
+      channel.speakerId !== this.state.channel.speakerId;
+    this.setState({
+      channel,
+      // Nuovo parlante: via i sottotitoli dell'enunciato precedente.
+      subtitle: startingUtterance ? null : this.state.subtitle,
     });
+    this.setTransmitting(channel.speakerId === this.state.self?.id);
   }
 
-  private closePeer(peerId: string): void {
-    this.pcs.get(peerId)?.close();
-    this.pcs.delete(peerId);
-    this.pendingIce.delete(peerId);
-    const el = this.audioEls.get(peerId);
-    if (el) {
-      el.srcObject = null;
-      this.audioEls.delete(peerId);
+  private setTransmitting(value: boolean): void {
+    if (this.transmitting === value) return;
+    this.transmitting = value;
+    if (!value) {
+      this.pendingSamples = [];
+      this.pendingLength = 0;
     }
   }
 
-  private stopLocalStream(): void {
-    for (const track of this.localStream?.getTracks() ?? []) {
-      track.stop();
+  private enqueuePlayback(base64: string): void {
+    const samples = base64PcmToFloat(base64);
+    if (samples.length === 0) return;
+    if (!this.playCtx) {
+      this.playCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+      this.playCursor = 0;
     }
-    this.localStream = null;
+    const ctx = this.playCtx;
+    void ctx.resume().catch(() => {});
+    const buffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE);
+    buffer.getChannelData(0).set(samples);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    // Piccolo jitter buffer, poi accodamento senza interruzioni.
+    const startAt = Math.max(ctx.currentTime + 0.05, this.playCursor);
+    source.start(startAt);
+    this.playCursor = startAt + buffer.duration;
   }
 }

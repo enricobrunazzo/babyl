@@ -42,7 +42,15 @@ Access Token con scope `read:packages`.)
        restart: unless-stopped
        ports:
          - "8787:8787"
+       environment:
+         # Traduzione simultanea (OpenAI Realtime). Senza questa riga l'app
+         # funziona in modalità "voce originale", senza traduzione.
+         - OPENAI_API_KEY=sk-INCOLLA-QUI-LA-TUA-KEY
    ```
+
+   La API key si crea su https://platform.openai.com/api-keys (serve un
+   account con credito a consumo). Resta solo sul NAS, non è mai esposta
+   ai browser degli utenti.
 
 5. **Avanti** → **Fine**. Container Manager scarica l'immagine e avvia il
    container.

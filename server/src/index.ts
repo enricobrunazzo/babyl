@@ -5,6 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import type { ClientMessage } from "../../shared/protocol.ts";
 import { RoomManager } from "./rooms.ts";
 import { createStaticHandler } from "./static.ts";
+import { providerFromEnv } from "./translation/openaiRealtime.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_NICKNAME_LENGTH = 40;
@@ -13,7 +14,8 @@ const MAX_ROOM_LENGTH = 64;
 // vengono terminati, liberando presenza ed eventuale lock PTT.
 const HEARTBEAT_INTERVAL_MS = 30_000;
 
-const rooms = new RoomManager();
+const translationProvider = providerFromEnv();
+const rooms = new RoomManager(translationProvider);
 
 const staticHandler = createStaticHandler(
   process.env.STATIC_DIR ??
@@ -111,10 +113,10 @@ function handleMessage(
       else room.releaseLock(session.peerId);
       break;
     }
-    case "signal": {
+    case "audio": {
       const room = session.roomId ? rooms.get(session.roomId) : null;
       if (!room) return;
-      room.relaySignal(session.peerId, message.to, message.data);
+      room.handleAudio(session.peerId, message.data);
       break;
     }
     case "leave": {
@@ -128,5 +130,10 @@ function handleMessage(
 }
 
 httpServer.listen(PORT, () => {
-  console.log(`[babyl] signaling server in ascolto su :${PORT} (ws path /ws)`);
+  console.log(`[babyl] server in ascolto su :${PORT} (ws path /ws)`);
+  console.log(
+    translationProvider
+      ? `[babyl] traduzione attiva: ${translationProvider.name}`
+      : "[babyl] traduzione DISATTIVATA (OPENAI_API_KEY assente): voce originale a tutti",
+  );
 });

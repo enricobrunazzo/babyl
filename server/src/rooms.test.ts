@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import type { WebSocket } from "ws";
 import type { PeerInfo, ServerMessage } from "../../shared/protocol.ts";
 import { Room, RoomManager } from "./rooms.ts";
+import type {
+  TranslationProvider,
+  TranslationSession,
+  UtteranceCallbacks,
+} from "./translation/provider.ts";
 
 interface FakeSocket {
   sent: ServerMessage[];
@@ -23,104 +28,234 @@ function fakeSocket(): FakeSocket {
   return socket;
 }
 
-function peer(id: string, nickname = id): PeerInfo {
-  return { id, nickname, lang: "it", joinedAt: Date.now() };
+function peer(id: string, lang = "it", nickname = id): PeerInfo {
+  return { id, nickname, lang, joinedAt: Date.now() };
+}
+
+function ofType<T extends ServerMessage["type"]>(
+  socket: FakeSocket,
+  type: T,
+): Extract<ServerMessage, { type: T }>[] {
+  return socket.sent.filter(
+    (m): m is Extract<ServerMessage, { type: T }> => m.type === type,
+  );
 }
 
 function lastOfType<T extends ServerMessage["type"]>(
   socket: FakeSocket,
   type: T,
 ): Extract<ServerMessage, { type: T }> | undefined {
-  return socket.sent
-    .filter((m): m is Extract<ServerMessage, { type: T }> => m.type === type)
-    .at(-1);
+  return ofType(socket, type).at(-1);
 }
 
-test("join: welcome al nuovo peer, peer-joined agli altri", () => {
-  const room = new Room("demo");
+/**
+ * Provider finto: "traduce" trasformando l'audio in maiuscolo e registra
+ * append/commit per verificare l'instradamento.
+ */
+class FakeProvider implements TranslationProvider {
+  readonly name = "fake";
+  readonly sessions: {
+    key: string;
+    appended: string[];
+    commits: number;
+    closed: boolean;
+    callbacks: UtteranceCallbacks;
+  }[] = [];
+
+  async createSession(
+    sourceLang: string,
+    targetLang: string,
+    callbacks: UtteranceCallbacks,
+  ): Promise<TranslationSession> {
+    const record = {
+      key: `${sourceLang}->${targetLang}`,
+      appended: [] as string[],
+      commits: 0,
+      closed: false,
+      callbacks,
+    };
+    this.sessions.push(record);
+    return {
+      sourceLang,
+      targetLang,
+      appendAudio(data) {
+        record.appended.push(data);
+        callbacks.onAudio(data.toUpperCase());
+      },
+      commit() {
+        record.commits += 1;
+      },
+      close() {
+        record.closed = true;
+      },
+    };
+  }
+}
+
+const tick = () => new Promise((resolve) => setImmediate(resolve));
+
+test("join: welcome con stato traduzione, peer-joined agli altri", () => {
+  const room = new Room("demo", null);
   const a = fakeSocket();
   const b = fakeSocket();
 
-  room.join(peer("a", "Marco"), a as unknown as WebSocket);
-  room.join(peer("b", "Anna"), b as unknown as WebSocket);
+  room.join(peer("a", "it", "Marco"), a as unknown as WebSocket);
+  room.join(peer("b", "de", "Anna"), b as unknown as WebSocket);
 
   const welcome = lastOfType(b, "welcome");
   assert.equal(welcome?.self.nickname, "Anna");
   assert.deepEqual(welcome?.peers.map((p) => p.id), ["a"]);
   assert.equal(welcome?.channel.speakerId, null);
+  assert.deepEqual(welcome?.translation, { enabled: false, provider: "off" });
 
-  const joined = lastOfType(a, "peer-joined");
-  assert.equal(joined?.peer.nickname, "Anna");
+  assert.equal(lastOfType(a, "peer-joined")?.peer.nickname, "Anna");
 });
 
 test("lock PTT: esclusivo, negato se occupato, rilasciato correttamente", () => {
-  const room = new Room("demo");
+  const room = new Room("demo", null);
   const a = fakeSocket();
   const b = fakeSocket();
-  room.join(peer("a", "Marco"), a as unknown as WebSocket);
-  room.join(peer("b", "Anna"), b as unknown as WebSocket);
+  room.join(peer("a", "it", "Marco"), a as unknown as WebSocket);
+  room.join(peer("b", "de", "Anna"), b as unknown as WebSocket);
 
   room.requestLock("a");
   assert.equal(room.channel.speakerId, "a");
   assert.equal(lastOfType(b, "channel")?.channel.speakerName, "Marco");
 
-  // Richiesta concorrente: negata, lo speaker non cambia
   room.requestLock("b");
   assert.equal(room.channel.speakerId, "a");
   assert.equal(lastOfType(b, "ptt-denied")?.reason, "busy");
 
-  // Il rilascio da parte di chi non detiene il lock è ignorato
   room.releaseLock("b");
   assert.equal(room.channel.speakerId, "a");
 
   room.releaseLock("a");
   assert.equal(room.channel.speakerId, null);
 
-  // Ora il canale è libero per B
   room.requestLock("b");
   assert.equal(room.channel.speakerId, "b");
 });
 
-test("leave dello speaker: il canale torna libero per tutti", () => {
-  const room = new Room("demo");
+test("audio senza provider: voce originale a tutti gli ascoltatori", () => {
+  const room = new Room("demo", null);
   const a = fakeSocket();
   const b = fakeSocket();
-  room.join(peer("a"), a as unknown as WebSocket);
-  room.join(peer("b"), b as unknown as WebSocket);
+  const c = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.join(peer("c", "it"), c as unknown as WebSocket);
+
+  // Senza lock l'audio viene ignorato
+  room.handleAudio("a", "chunk0");
+  assert.equal(ofType(b, "audio").length, 0);
 
   room.requestLock("a");
+  room.handleAudio("a", "chunk1");
+
+  assert.deepEqual(
+    ofType(b, "audio").map((m) => m.data),
+    ["chunk1"],
+  );
+  assert.deepEqual(
+    ofType(c, "audio").map((m) => m.data),
+    ["chunk1"],
+  );
+  assert.equal(ofType(a, "audio").length, 0); // mai a chi parla
+});
+
+test("audio con provider: originale alla stessa lingua, tradotto alle altre", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("demo", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  const c = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.join(peer("c", "it"), c as unknown as WebSocket);
+
+  room.requestLock("a");
+  room.handleAudio("a", "ciao");
+  await tick();
+
+  // c (stessa lingua): voce originale
+  assert.deepEqual(
+    ofType(c, "audio").map((m) => m.data),
+    ["ciao"],
+  );
+  // b (tedesco): audio "tradotto" dal provider finto
+  assert.deepEqual(
+    ofType(b, "audio").map((m) => m.data),
+    ["CIAO"],
+  );
+  // una sola sessione it->de
+  assert.equal(provider.sessions.length, 1);
+  assert.equal(provider.sessions[0].key, "it->de");
+
+  // Il rilascio del PTT esegue il commit dell'enunciato
+  room.releaseLock("a");
+  await tick();
+  assert.equal(provider.sessions[0].commits, 1);
+});
+
+test("sottotitoli: la trascrizione arriva solo agli ascoltatori della lingua", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("demo", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  const c = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.join(peer("c", "it"), c as unknown as WebSocket);
+
+  room.requestLock("a");
+  room.handleAudio("a", "ciao");
+  await tick();
+
+  provider.sessions[0].callbacks.onTranscript("Hallo", true);
+  const transcript = lastOfType(b, "transcript");
+  assert.equal(transcript?.text, "Hallo");
+  assert.equal(transcript?.final, true);
+  assert.equal(transcript?.speakerId, "a");
+  assert.equal(ofType(c, "transcript").length, 0);
+  assert.equal(ofType(a, "transcript").length, 0);
+});
+
+test("leave dello speaker: canale libero e commit dell'enunciato", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("demo", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+
+  room.requestLock("a");
+  room.handleAudio("a", "ciao");
+  await tick();
   room.leave("a");
+  await tick();
 
   assert.equal(room.channel.speakerId, null);
   assert.equal(lastOfType(b, "channel")?.channel.speakerId, null);
   assert.equal(lastOfType(b, "peer-left")?.peerId, "a");
+  assert.equal(provider.sessions[0].commits, 1);
 });
 
-test("relaySignal: consegna solo al destinatario", () => {
-  const room = new Room("demo");
+test("RoomManager: distrugge le stanze vuote e chiude le sessioni", async () => {
+  const provider = new FakeProvider();
+  const manager = new RoomManager(provider);
+  const room = manager.get("effimera");
   const a = fakeSocket();
   const b = fakeSocket();
-  const c = fakeSocket();
-  room.join(peer("a"), a as unknown as WebSocket);
-  room.join(peer("b"), b as unknown as WebSocket);
-  room.join(peer("c"), c as unknown as WebSocket);
-
-  room.relaySignal("a", "b", { kind: "offer", sdp: "sdp-test" });
-
-  const signal = lastOfType(b, "signal");
-  assert.equal(signal?.from, "a");
-  assert.equal(lastOfType(c, "signal"), undefined);
-  assert.equal(lastOfType(a, "signal"), undefined);
-});
-
-test("RoomManager: distrugge le stanze vuote (stateless)", () => {
-  const manager = new RoomManager();
-  const room = manager.get("effimera");
-  room.join(peer("a"), fakeSocket() as unknown as WebSocket);
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.requestLock("a");
+  room.handleAudio("a", "ciao");
+  await tick();
 
   manager.leave("effimera", "a");
+  manager.leave("effimera", "b");
+  await tick();
 
-  // La stanza restituita ora è una nuova istanza, senza peer residui
-  assert.equal(manager.get("effimera").peers.size, 0);
   assert.notEqual(manager.get("effimera"), room);
+  assert.equal(provider.sessions[0].closed, true);
 });

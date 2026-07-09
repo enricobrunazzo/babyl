@@ -1,7 +1,8 @@
 /**
  * Test end-to-end: due utenti nella stessa stanza, verifica di roster,
- * connessione WebRTC, lock Push-to-Talk half-duplex e riconnessione
- * automatica dopo un riavvio del signaling server.
+ * lock Push-to-Talk half-duplex, relay audio attraverso il server
+ * (voce originale, senza API key di traduzione) e riconnessione
+ * automatica dopo un riavvio del server.
  *
  * Prerequisito: `npm run build` (usa vite preview su web/dist).
  * Chromium: risolto da Playwright, oppure via env CHROMIUM_PATH.
@@ -133,9 +134,6 @@ try {
   await waitRoster(b.page, 2);
   console.log("✔ join e roster 2/2 su entrambi");
 
-  // --- Mesh WebRTC effettivamente connessa (build di produzione: niente
-  //     hook di debug, si osserva il canale di segnalazione indirettamente
-  //     tramite gli stati UI, quindi qui basta lo stato Libero su entrambi ---
   await a.page.waitForSelector(".ptt-free", { timeout: 15000 });
   await b.page.waitForSelector(".ptt-free", { timeout: 15000 });
   console.log("✔ canale Libero (verde) su entrambi");
@@ -151,6 +149,18 @@ try {
     throw new Error(`label Bloccato senza nome speaker: ${label}`);
   }
   console.log("✔ A trasmette (rosso), B bloccato (grigio) con nome speaker");
+
+  // --- Relay audio: mentre A parla (tono del microfono finto di Chromium),
+  //     B deve ricevere chunk audio attraverso il server ---
+  await b.page.waitForFunction(
+    () =>
+      Number(
+        document.querySelector(".room")?.getAttribute("data-audio-frames"),
+      ) > 0,
+    undefined,
+    { timeout: 15000 },
+  );
+  console.log("✔ relay audio: B riceve l'audio di A attraverso il server");
 
   await a.page.dispatchEvent("button.ptt-button", "pointerup", {
     pointerId: 1,

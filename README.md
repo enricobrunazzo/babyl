@@ -20,19 +20,22 @@ Apri la stessa stanza da due schede/dispositivi per provare il canale half-duple
 
 ```
 babyl/
-├── shared/protocol.ts        # Protocollo di segnalazione condiviso client/server
-├── server/                   # Signaling server Node (ws)
+├── shared/protocol.ts        # Protocollo segnalazione + audio, condiviso client/server
+├── server/                   # Server Node (ws): stanze, lock PTT, snodo audio
 │   └── src/
-│       ├── index.ts          # WebSocket endpoint /ws + health check
-│       ├── rooms.ts          # Stanze, presenza, lock PTT autoritativo
+│       ├── index.ts          # WebSocket /ws + SPA statica + health check
+│       ├── rooms.ts          # Presenza, lock autoritativo, instradamento audio
 │       └── translation/
-│           └── pipeline.ts   # Interfaccia provider S2S (punto di estensione)
+│           ├── provider.ts        # Interfaccia motore di traduzione S2S
+│           └── openaiRealtime.ts  # Provider OpenAI Realtime (speech-to-speech)
 └── web/                      # SPA mobile-first (Vite + React + TypeScript)
+    ├── public/pcm-capture-worklet.js  # Cattura microfono (AudioWorklet)
     └── src/
         ├── components/       # Onboarding, Room, PTTButton
         ├── hooks/useRoom.ts  # Stato stanza reattivo (useSyncExternalStore)
         └── lib/
-            ├── roomClient.ts # WebSocket + mesh WebRTC + logica half-duplex
+            ├── roomClient.ts # WebSocket, cattura/riproduzione PCM, half-duplex
+            ├── pcm.ts        # Conversioni PCM16 ↔ base64
             └── languages.ts  # Rilevamento lingua da navigator.language
 ```
 
@@ -51,29 +54,39 @@ babyl/
 - **Stato Bloccato (grigio)**: *«Marco» sta parlando…* — il pulsante è disabilitato via software.
 - Il **server è l'unica autorità sul lock del canale**: le richieste concorrenti vengono serializzate, impedendo collisione di pacchetti audio e sovrapposizione delle tracce.
 
-**Trasporto audio**
-- WebRTC mesh peer-to-peer con trickle ICE; la segnalazione passa dal server via WebSocket.
-- La traccia microfono è sempre negoziata ma abilitata solo quando il server concede il lock PTT (nessuna rinegoziazione SDP alla pressione: latenza di attacco minima).
+**Traduzione simultanea (architettura server-centrica)**
+- L'audio viaggia sempre attraverso il server (niente peer-to-peer, niente TURN): il paradigma half-duplex significa un solo flusso alla volta, che il server smista.
+- Il parlante invia PCM16 mono 24 kHz via WebSocket (cattura AudioWorklet); gli ascoltatori della sua stessa lingua ricevono la voce originale, per ogni altra lingua in stanza il server apre una sessione col motore di traduzione e distribuisce l'audio tradotto.
+- **Motore**: OpenAI Realtime API (speech-to-speech nativo). Il PTT si sposa con la modalità manuale dell'API: audio accumulato durante la pressione, traduzione al rilascio (`commit`). Sessioni riusate tra enunciati per mantenere il contesto.
+- **Sottotitoli live**: la trascrizione della traduzione arriva in streaming a ogni ascoltatore nella propria lingua.
+- Senza `OPENAI_API_KEY` l'app funziona in modalità **voce originale** (nessuna traduzione, tutti sentono tutto): utile per sviluppo e test senza costi.
+- Il motore è pluggabile: `server/src/translation/provider.ts` definisce l'interfaccia, `openaiRealtime.ts` è l'implementazione attiva.
 
 **Resilienza**
-- Riconnessione automatica del client con backoff esponenziale (rete mobile instabile): la mesh viene ricostruita al rientro in stanza.
+- Riconnessione automatica del client con backoff esponenziale (rete mobile instabile).
 - Heartbeat WebSocket lato server: i client spariti senza chiudere la connessione (telefono bloccato, cambio rete) vengono terminati, liberando presenza ed eventuale lock PTT.
-- ICE server configurabili via `VITE_ICE_SERVERS` (JSON) per aggiungere TURN in produzione.
 
-## Roadmap verso la traduzione S2S
+## Configurazione del server
 
-L'MVP consegna l'audio originale peer-to-peer. La traduzione simultanea (latenza end-to-end < 1.5 s) si innesta in `server/src/translation/pipeline.ts`, che definisce l'interfaccia `TranslationProvider`:
+| Variabile | Default | Descrizione |
+| --- | --- | --- |
+| `PORT` | `8787` | Porta HTTP/WebSocket |
+| `OPENAI_API_KEY` | — | Abilita la traduzione simultanea; assente = voce originale |
+| `OPENAI_REALTIME_MODEL` | `gpt-realtime-mini` | Modello Realtime da usare |
+| `OPENAI_REALTIME_VOICE` | `marin` | Voce della sintesi |
+| `STATIC_DIR` | `web/dist` | Cartella della SPA buildata |
 
-1. **SFU / media server** — instradare l'audio del parlante attraverso il server (es. mediasoup, LiveKit) invece della mesh P2P.
-2. **Pipeline streaming** — `audio → VAD → STT streaming → traduzione → TTS streaming`, una uscita per ciascuna lingua presente nella stanza; in alternativa un provider S2S nativo voice-to-voice.
-3. **Sottotitoli live** — l'interfaccia espone già `onTranscript` per i parziali.
-4. **TURN server** — necessario in produzione per NAT restrittivi (l'MVP usa solo STUN).
-5. **Business model prepagato** — metering dei secondi di inferenza per stanza/sessione, ancorato all'effettiva computazione AI.
+## Roadmap
+
+1. **Fase pubblica**: account e prepagato (auth + database, Stripe, metering dei secondi di inferenza per stanza/sessione — il punto di misura è l'interfaccia `TranslationProvider`).
+2. **Qualità**: VAD per tagliare i silenzi (meno secondi fatturati), scelta voce per utente, più lingue.
+3. **Scala**: spostare il container su un host cloud quando il NAS non basta; il codice non cambia.
 
 ## Test
 
-- **Unitari** (`npm run test:unit`): logica di stanza e lock half-duplex del server (node:test).
-- **End-to-end** (`npm run build && npm run test:e2e`): due browser reali entrano nella stessa stanza e si verificano roster, lock PTT esclusivo, inversione ruoli, riconnessione automatica dopo un riavvio del server e uscita peer. Richiede Chromium (Playwright); percorso personalizzabile via env `CHROMIUM_PATH`.
+- **Unitari** (`npm run test:unit`): lock half-duplex e instradamento audio/traduzione del server, con provider finto (node:test).
+- **End-to-end** (`npm run build && npm run test:e2e`): due browser reali entrano nella stessa stanza e si verificano roster, lock PTT esclusivo, relay audio attraverso il server, inversione ruoli, riconnessione automatica dopo un riavvio del server e uscita peer. Richiede Chromium (Playwright); percorso personalizzabile via env `CHROMIUM_PATH`.
+- Il collaudo della **traduzione reale** richiede una `OPENAI_API_KEY` e va fatto su un deploy (o in locale) con due dispositivi e lingue diverse.
 
 La CI (GitHub Actions) esegue typecheck, build e l'intera suite a ogni push su `main`.
 

@@ -1,9 +1,13 @@
 /**
- * Protocollo di segnalazione Babyl — condiviso tra client (web) e server.
+ * Protocollo di segnalazione e audio Babyl — condiviso tra client e server.
  *
  * Il server è l'autorità sullo stato del canale (Half-Duplex / Push-to-Talk):
- * un solo peer alla volta può detenere il "lock" di trasmissione, prevenendo
- * la collisione di pacchetti audio e la sovrapposizione delle tracce.
+ * un solo peer alla volta può detenere il "lock" di trasmissione.
+ *
+ * L'audio viaggia sempre attraverso il server (niente peer-to-peer): il
+ * parlante invia PCM16 mono 24 kHz in base64; il server lo consegna agli
+ * ascoltatori della stessa lingua in originale e lo instrada al motore di
+ * traduzione per le altre lingue presenti in stanza.
  */
 
 export interface PeerInfo {
@@ -20,33 +24,35 @@ export interface ChannelState {
   speakerName: string | null;
 }
 
+export interface TranslationInfo {
+  enabled: boolean;
+  /** Nome del provider attivo, o "off" (voce originale a tutti). */
+  provider: string;
+}
+
 /** Messaggi client → server. */
 export type ClientMessage =
   | { type: "join"; room: string; nickname: string; lang: string }
   | { type: "ptt"; action: "request" | "release" }
-  | { type: "signal"; to: string; data: SignalPayload }
+  /** Chunk audio del parlante: PCM16 mono 24 kHz, base64. */
+  | { type: "audio"; data: string }
   | { type: "leave" };
 
 /** Messaggi server → client. */
 export type ServerMessage =
-  | { type: "welcome"; self: PeerInfo; peers: PeerInfo[]; channel: ChannelState }
+  | {
+      type: "welcome";
+      self: PeerInfo;
+      peers: PeerInfo[];
+      channel: ChannelState;
+      translation: TranslationInfo;
+    }
   | { type: "peer-joined"; peer: PeerInfo }
   | { type: "peer-left"; peerId: string }
   | { type: "channel"; channel: ChannelState }
   | { type: "ptt-denied"; reason: "busy" }
-  | { type: "signal"; from: string; data: SignalPayload }
+  /** Audio in arrivo, già nella lingua del destinatario (o voce originale). */
+  | { type: "audio"; speakerId: string; data: string }
+  /** Sottotitoli live nella lingua del destinatario. */
+  | { type: "transcript"; speakerId: string; text: string; final: boolean }
   | { type: "error"; message: string };
-
-/** Payload WebRTC inoltrato opacamente dal server tra i peer. */
-export type SignalPayload =
-  | { kind: "offer"; sdp: string }
-  | { kind: "answer"; sdp: string }
-  | { kind: "ice"; candidate: RTCIceCandidateInit };
-
-// Tipo strutturale minimo per non dipendere dai lib DOM sul server.
-export interface RTCIceCandidateInit {
-  candidate?: string;
-  sdpMLineIndex?: number | null;
-  sdpMid?: string | null;
-  usernameFragment?: string | null;
-}
