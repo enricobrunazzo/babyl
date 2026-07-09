@@ -1,0 +1,15 @@
+# Deploy su Synology (Container Manager → Progetto) o qualsiasi host Docker.
+# L'immagine è pubblicata da GitHub Actions a ogni push su main.
+# Il reverse proxy punta a http://<NAS>:8787 (HTTP + WebSocket su /ws).
+services:
+  babyl:
+    image: ghcr.io/enricobrunazzo/babyl:latest
+    # Per buildare sul NAS invece di usare l'immagine pubblicata,
+    # commenta la riga image e decommenta build:
+    # build: .
+    container_name: babyl
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      - PORT=8787

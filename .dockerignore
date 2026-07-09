@@ -1,8 +1,8 @@
 node_modules
 **/node_modules
 **/dist
-web
 tests
 .github
 .git
 *.md
+docker-compose.yml

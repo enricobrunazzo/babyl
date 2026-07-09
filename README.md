@@ -79,8 +79,13 @@ La CI (GitHub Actions) esegue typecheck, build e l'intera suite a ogni push su `
 
 ## Deploy
 
-- **Web** (statico): Vercel/Netlify — build con `npm run build --workspace=web`, output in `web/dist`. Impostare `VITE_SIGNALING_URL` (es. `wss://ws.babyl.it/ws`) se il signaling è su un altro host.
-- **Signaling server** (processo persistente con WebSocket): Fly.io, Railway, Render o VPS — `npm run start --workspace=server` (porta via `PORT`, default 8787), oppure col `Dockerfile` incluso. Non è deployabile su funzioni serverless.
+Il container Docker è **all-in-one**: il server Node serve la SPA buildata e il WebSocket `/ws` sulla stessa porta (8787), quindi al reverse proxy basta un solo upstream. L'immagine è pubblicata su `ghcr.io/enricobrunazzo/babyl:latest` a ogni push su `main` (workflow Docker).
+
+- **Self-hosted / Synology NAS**: guida passo-passo in [`docs/deploy-synology.md`](docs/deploy-synology.md) (Container Manager + reverse proxy DSM con supporto WebSocket + Let's Encrypt).
+- **Qualsiasi host Docker**: `docker compose up -d` col [`docker-compose.yml`](docker-compose.yml) incluso.
+- **Split frontend/backend** (alternativa): la SPA è comunque deployabile come statico (Vercel/Netlify, output `web/dist`) impostando `VITE_SIGNALING_URL` verso il signaling server; il server richiede un processo persistente (no serverless).
+
+HTTPS è obbligatorio in produzione: senza secure context il browser nega l'accesso al microfono.
 
 ## Script
 

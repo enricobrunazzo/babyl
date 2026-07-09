@@ -1,8 +1,10 @@
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer, type WebSocket } from "ws";
 import type { ClientMessage } from "../../shared/protocol.ts";
 import { RoomManager } from "./rooms.ts";
+import { createStaticHandler } from "./static.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_NICKNAME_LENGTH = 40;
@@ -13,10 +15,19 @@ const HEARTBEAT_INTERVAL_MS = 30_000;
 
 const rooms = new RoomManager();
 
+const staticHandler = createStaticHandler(
+  process.env.STATIC_DIR ??
+    fileURLToPath(new URL("../../web/dist", import.meta.url)),
+);
+
 const httpServer = createServer((req, res) => {
   if (req.url === "/healthz") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+  if (staticHandler) {
+    staticHandler(req, res);
     return;
   }
   res.writeHead(404);
