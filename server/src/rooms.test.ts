@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { WebSocket } from "ws";
 import type {
   PeerInfo,
+  PeerRole,
   ServerMessage,
   TranslationTiming,
 } from "../../shared/protocol.ts";
@@ -40,8 +41,13 @@ function fakeSocket(): FakeSocket {
   return socket;
 }
 
-function peer(id: string, lang = "it", nickname = id): PeerInfo {
-  return { id, nickname, lang, joinedAt: Date.now() };
+function peer(
+  id: string,
+  lang = "it",
+  nickname = id,
+  role: PeerRole = "speaker",
+): PeerInfo {
+  return { id, nickname, lang, role, joinedAt: Date.now() };
 }
 
 function ofType<T extends ServerMessage["type"]>(
@@ -403,6 +409,77 @@ test("single-device: traduzione ko avvisa il dispositivo stesso", async () => {
   await tick();
 
   assert.equal(ofType(a, "translation-error").length, 1);
+});
+
+test("evento: il pubblico non può prendere il canale senza la parola concessa", () => {
+  const room = new Room("evento", null);
+  const relatore = fakeSocket();
+  const spettatore = fakeSocket();
+  room.join(peer("r", "it", "Relatore", "speaker"), relatore as unknown as WebSocket, "event");
+  room.join(peer("s", "de", "Spettatore", "audience"), spettatore as unknown as WebSocket, "event");
+
+  // welcome del pubblico riporta la modalità evento.
+  assert.equal(lastOfType(spettatore, "welcome")?.mode, "event");
+
+  // Il pubblico chiede il canale: negato con reason "not-granted".
+  room.requestLock("s");
+  assert.equal(room.channel.speakerId, null);
+  assert.equal(lastOfType(spettatore, "ptt-denied")?.reason, "not-granted");
+
+  // Il relatore invece parla liberamente.
+  room.requestLock("r");
+  assert.equal(room.channel.speakerId, "r");
+});
+
+test("evento: alzata di mano, concessione e ritiro della parola (Q&A)", () => {
+  const room = new Room("qa", null);
+  const relatore = fakeSocket();
+  const spettatore = fakeSocket();
+  room.join(peer("r", "it", "Relatore", "speaker"), relatore as unknown as WebSocket, "event");
+  room.join(peer("s", "de", "Spettatore", "audience"), spettatore as unknown as WebSocket, "event");
+
+  // Il pubblico alza la mano: la coda si propaga a tutti.
+  room.raiseHand("s", true);
+  assert.deepEqual(lastOfType(relatore, "hands")?.hands, ["s"]);
+
+  // Un relatore concede la parola: il beneficiario esce dalla coda.
+  room.grantFloor("r", "s");
+  assert.equal(lastOfType(spettatore, "floor")?.floor, "s");
+  assert.deepEqual(lastOfType(relatore, "hands")?.hands, []);
+
+  // Ora il pubblico può trasmettere.
+  room.requestLock("s");
+  assert.equal(room.channel.speakerId, "s");
+
+  // Il relatore ritira la parola mentre il pubblico parla: canale e parola liberi.
+  room.revokeFloor("r");
+  assert.equal(room.channel.speakerId, null);
+  assert.equal(lastOfType(spettatore, "floor")?.floor, null);
+
+  // Senza parola, il pubblico non trasmette più.
+  room.requestLock("s");
+  assert.equal(room.channel.speakerId, null);
+});
+
+test("evento: solo un relatore può concedere la parola", () => {
+  const room = new Room("perm", null);
+  const relatore = fakeSocket();
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("r", "it", "Relatore", "speaker"), relatore as unknown as WebSocket, "event");
+  room.join(peer("a", "de", "A", "audience"), a as unknown as WebSocket, "event");
+  room.join(peer("b", "fr", "B", "audience"), b as unknown as WebSocket, "event");
+
+  // Un membro del pubblico non può concedere la parola a un altro.
+  room.grantFloor("a", "b");
+  assert.equal(room.channel.speakerId, null);
+  assert.equal(lastOfType(b, "floor"), undefined);
+
+  // Uscendo, chi ha la parola la libera per tutti.
+  room.grantFloor("r", "a");
+  assert.equal(lastOfType(a, "floor")?.floor, "a");
+  room.leave("a");
+  assert.equal(lastOfType(b, "floor")?.floor, null);
 });
 
 test("metrics: conta byte e ms d'inferenza, i totali sopravvivono alla stanza", async () => {

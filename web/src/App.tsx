@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { Onboarding, type Profile } from "./components/Onboarding";
 import { Room } from "./components/Room";
+import { EarphoneGate } from "./components/EarphoneGate";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { newRoomId } from "./lib/roomName";
 
@@ -16,14 +17,25 @@ function roomFromUrl(): string {
   return "piazza";
 }
 
+/**
+ * Il link di un evento porta `?event=1`: chi lo apre entra come pubblico
+ * (ascolto puro, microfono disabilitato finché il relatore non dà la parola).
+ */
+function eventFromUrl(): boolean {
+  return new URLSearchParams(location.search).get("event") === "1";
+}
+
 export default function App() {
   const [roomId, setRoomId] = useState(roomFromUrl);
+  const [eventJoin] = useState(eventFromUrl);
   // Stanza privata per la modalità single-device: l'audio torna solo al
   // dispositivo stesso, quindi non deve collidere con una stanza pubblica.
   const [soloRoom] = useState(
     () => `solo-${Math.random().toString(36).slice(2, 10)}`,
   );
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Evento: prima di entrare si supera il gate degli auricolari (obbligatori).
+  const [earphonesReady, setEarphonesReady] = useState(false);
 
   // Cambia stanza e allinea l'URL, così un refresh o il link di condivisione
   // puntano alla stanza corrente.
@@ -41,20 +53,35 @@ export default function App() {
   const activeRoom =
     profile?.mode === "solo" ? soloRoom : roomId.trim() || "piazza";
 
+  // Un evento richiede il gate auricolari prima di entrare in stanza.
+  const needsEarphoneGate = profile?.mode === "event" && !earphonesReady;
+
+  const leave = () => {
+    setProfile(null);
+    setEarphonesReady(false);
+  };
+
   return (
     <>
-      {profile ? (
+      {profile && needsEarphoneGate ? (
+        <EarphoneGate
+          lang={profile.lang}
+          onReady={() => setEarphonesReady(true)}
+          onBack={leave}
+        />
+      ) : profile ? (
         // key: cambiare stanza rimonta il client così si entra in quella nuova.
         <Room
           key={activeRoom}
           roomId={activeRoom}
           profile={profile}
-          onLeave={() => setProfile(null)}
+          onLeave={leave}
           onNewRoom={() => changeRoom(newRoomId())}
         />
       ) : (
         <Onboarding
           roomId={roomId}
+          eventJoin={eventJoin}
           onRoomChange={changeRoom}
           onEnter={setProfile}
         />

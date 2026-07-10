@@ -2,11 +2,14 @@ import type {
   ChannelState,
   ClientMessage,
   PeerInfo,
+  PeerRole,
+  RoomMode,
   ServerMessage,
   TranslationInfo,
   TranslationTiming,
 } from "../../../shared/protocol";
 import { floatToPcmBuffer, pcmBufferToFloat, SAMPLE_RATE } from "./pcm";
+import { eventStrings } from "./i18n";
 
 export type ConnectionStatus =
   | "idle"
@@ -55,6 +58,16 @@ export interface RoomState {
   solo: { source: string; target: string } | null;
   /** Traduzione temporaneamente non disponibile (motore sovraccarico). */
   translationError: boolean;
+  /** Modalità della stanza: "conversation" (default) o "event" (conferenza). */
+  mode: RoomMode;
+  /** Ruolo del partecipante: "speaker" (relatore/paritario) o "audience" (pubblico). */
+  role: PeerRole;
+  /** Evento: id dei partecipanti con la mano alzata, in ordine di richiesta. */
+  hands: string[];
+  /** Evento: id del partecipante a cui è concessa la parola, o null. */
+  floor: string | null;
+  /** Evento/pubblico: microfono negato al momento della concessione (Q&A). */
+  micGrantDenied: boolean;
   error: "mic-denied" | "connection" | null;
 }
 
@@ -67,6 +80,10 @@ export interface RoomOptions {
   debug?: boolean;
   /** Modalità single-device: seconda lingua (la prima è `lang`). */
   soloTarget?: string;
+  /** Modalità richiesta al server (default "conversation"). */
+  mode?: RoomMode;
+  /** Ruolo richiesto (default "speaker"). Il pubblico di un evento usa "audience". */
+  role?: PeerRole;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 8;
@@ -135,6 +152,11 @@ export class RoomClient {
     },
     solo: null,
     translationError: false,
+    mode: "conversation",
+    role: "speaker",
+    hands: [],
+    floor: null,
+    micGrantDenied: false,
     error: null,
   };
 
@@ -142,6 +164,13 @@ export class RoomClient {
     if (opts.soloTarget) {
       this.state.solo = { source: opts.lang, target: opts.soloTarget };
     }
+    this.state.mode = opts.mode ?? "conversation";
+    this.state.role = opts.role ?? "speaker";
+  }
+
+  /** Il pubblico di un evento ascolta soltanto finché non gli è concessa la parola. */
+  private get listenOnly(): boolean {
+    return this.opts.role === "audience";
   }
 
   getState = (): RoomState => this.state;
@@ -159,7 +188,52 @@ export class RoomClient {
   async connect(): Promise<void> {
     const generation = ++this.generation;
     this.disposed = false;
-    this.setState({ status: "mic" });
+
+    // Pubblico di un evento: nessun microfono all'ingresso (ascolto puro). Lo
+    // si attiva pigramente solo se il relatore concede la parola (Q&A).
+    if (!this.listenOnly) {
+      this.setState({ status: "mic" });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch {
+        if (generation === this.generation) {
+          this.setState({ status: "error", error: "mic-denied" });
+        }
+        return;
+      }
+      if (this.disposed || generation !== this.generation) {
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
+      this.localStream = stream;
+
+      try {
+        await this.initCapture(stream);
+      } catch (error) {
+        console.warn("[babyl] inizializzazione cattura audio fallita", error);
+      }
+      if (this.disposed || generation !== this.generation) return;
+    }
+
+    this.setState({ status: "connecting" });
+    if (this.opts.debug) this.startMetrics();
+    this.openSocket();
+  }
+
+  /**
+   * Attiva il microfono su richiesta: usato dal pubblico di un evento quando gli
+   * viene concessa la parola. Idempotente; se il permesso è negato lo segnala
+   * senza cadere dalla stanza (resta comunque in ascolto).
+   */
+  private async ensureCapture(): Promise<void> {
+    if (this.localStream) return;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -170,27 +244,40 @@ export class RoomClient {
         },
       });
     } catch {
-      if (generation === this.generation) {
-        this.setState({ status: "error", error: "mic-denied" });
-      }
+      this.setState({ micGrantDenied: true });
       return;
     }
-    if (this.disposed || generation !== this.generation) {
+    if (this.disposed) {
       for (const track of stream.getTracks()) track.stop();
       return;
     }
     this.localStream = stream;
-
     try {
       await this.initCapture(stream);
     } catch (error) {
       console.warn("[babyl] inizializzazione cattura audio fallita", error);
     }
-    if (this.disposed || generation !== this.generation) return;
+  }
 
-    this.setState({ status: "connecting" });
-    if (this.opts.debug) this.startMetrics();
-    this.openSocket();
+  /**
+   * Annuncio vocale locale "microfono abilitato" nella lingua del partecipante,
+   * quando gli viene concessa la parola. Usa la sintesi vocale del dispositivo
+   * (Web Speech): gratuita, offline, nessun costo del motore di traduzione.
+   */
+  private announceMicOn(): void {
+    const lang = this.state.self?.lang ?? this.opts.lang;
+    try {
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const utterance = new SpeechSynthesisUtterance(
+        eventStrings(lang).micOnAnnounce,
+      );
+      utterance.lang = lang;
+      synth.speak(utterance);
+    } catch {
+      // Sintesi vocale non disponibile: l'avviso testuale in UI resta comunque.
+    }
   }
 
   /** Campiona banda e jitter ~1/s (solo in modalità debug). */
@@ -277,6 +364,8 @@ export class RoomClient {
         room: this.opts.room,
         nickname: this.opts.nickname,
         lang: this.opts.lang,
+        mode: this.opts.mode,
+        role: this.opts.role,
       });
     };
     ws.onmessage = (event) => {
@@ -398,7 +487,12 @@ export class RoomClient {
           peers: message.peers,
           channel: message.channel,
           translation: message.translation,
+          mode: message.mode,
+          role: message.self.role,
+          hands: message.hands,
         });
+        // Applica la parola concessa (gestisce anche la riconnessione a metà Q&A).
+        this.applyFloor(message.floor);
         // Single-device: comunica subito la direzione di traduzione al server.
         if (this.state.solo) {
           this.send({ type: "solo-config", ...this.state.solo });
@@ -437,6 +531,14 @@ export class RoomClient {
         });
         break;
       }
+      case "hands": {
+        this.setState({ hands: message.hands });
+        break;
+      }
+      case "floor": {
+        this.applyFloor(message.floor);
+        break;
+      }
       case "ptt-denied": {
         // Nessuna azione: il broadcast "channel" tiene già la UI in stato
         // Bloccato (grigio) per tutti i non-parlanti.
@@ -471,6 +573,36 @@ export class RoomClient {
         break;
       }
     }
+  }
+
+  /**
+   * Applica la parola concessa (evento/Q&A). Alla transizione "concessa a me"
+   * annuncia a voce "microfono abilitato" e attiva pigramente il microfono.
+   */
+  private applyFloor(floor: string | null): void {
+    const selfId = this.state.self?.id;
+    const wasMine = this.state.floor === selfId && selfId != null;
+    const nowMine = floor != null && floor === selfId;
+    this.setState({ floor, micGrantDenied: nowMine ? this.state.micGrantDenied : false });
+    if (nowMine && !wasMine) {
+      this.announceMicOn();
+      void this.ensureCapture();
+    }
+  }
+
+  /** Evento/Q&A: il pubblico alza o abbassa la mano per chiedere la parola. */
+  raiseHand(raised: boolean): void {
+    this.send({ type: "raise-hand", raised });
+  }
+
+  /** Evento: il relatore concede la parola a un partecipante del pubblico. */
+  grantFloor(peerId: string): void {
+    this.send({ type: "grant-floor", peerId });
+  }
+
+  /** Evento: il relatore ritira la parola concessa (chiude il turno del Q&A). */
+  revokeFloor(): void {
+    this.send({ type: "revoke-floor" });
   }
 
   private applyChannel(channel: ChannelState): void {

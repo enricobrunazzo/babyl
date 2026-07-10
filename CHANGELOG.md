@@ -9,6 +9,24 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Aggiunto
 
+- **Modalità evento (conferenza + Q&A) per fiere, convention e platee
+  multilingue.** Un relatore parla dal microfono dell'app e tutti gli spettatori
+  ascoltano nella propria lingua, tradotti in tempo reale; il pubblico entra dal
+  QR/link (che porta `?event=1`) come **ascoltatore a microfono disabilitato**.
+  Prima di entrare, un **gate degli auricolari** obbligatorio con invito animato
+  chiede conferma di indossarli (i browser non possono rilevarli via hardware,
+  quindi è un'autodichiarazione) — evita fischi e rientri in sala. Per il **Q&A**
+  lo spettatore **alza la mano**, il relatore la vede in coda e **concede la
+  parola**: al beneficiario una voce sintetizzata sul dispositivo (Web Speech,
+  nella sua lingua) annuncia *«microfono abilitato»* e si attiva il microfono,
+  così può intervenire nella propria lingua arrivando tradotto a tutti. Il
+  relatore può **ritirare la parola** in qualsiasi momento. Il server resta
+  l'unica autorità sul canale: il pubblico può trasmettere solo con la parola
+  concessa. Riusa l'instradamento di traduzione esistente (nessuna nuova
+  meccanica audio). Coperto da test unitari del server (alzata di mano,
+  concessione/ritiro, permessi) e da smoke UI end-to-end nei due ruoli.
+  (`shared/protocol.ts`, `server/src/rooms.ts`, `web/src/lib/roomClient.ts`,
+  `web/src/components/{EarphoneGate,Onboarding,Room}.tsx`)
 - **PWA installabile in schermata Home (Android e iOS).** Web app manifest,
   service worker (installabilità + shell offline) e icone (192/512 + maskable)
   generate dal logo. L'app resta "zero download" ma ora può essere aggiunta alla

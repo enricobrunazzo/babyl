@@ -12,11 +12,29 @@
  * viaggiano come frame testuali JSON.
  */
 
+/**
+ * Modalità della stanza, decisa dal primo che entra:
+ * - "conversation": stanza paritaria (default), tutti possono prendere il PTT;
+ * - "event": conferenza. Un relatore trasmette a un pubblico che ascolta
+ *   tradotto nella propria lingua; il pubblico ha il microfono disabilitato
+ *   finché il relatore non concede la parola (Q&A con alzata di mano).
+ */
+export type RoomMode = "conversation" | "event";
+
+/**
+ * Ruolo del partecipante. In "conversation" sono tutti "speaker" (paritari).
+ * In "event": "speaker" = relatore (può parlare e concedere la parola),
+ * "audience" = pubblico (ascolta; può parlare solo se gli è concessa la parola).
+ */
+export type PeerRole = "speaker" | "audience";
+
 export interface PeerInfo {
   id: string;
   nickname: string;
   /** Codice lingua BCP-47 base (es. "it", "de", "en") scelto in onboarding. */
   lang: string;
+  /** Ruolo in stanza (rilevante in modalità evento). */
+  role: PeerRole;
   joinedAt: number;
 }
 
@@ -53,11 +71,27 @@ export interface TranslationInfo {
 
 /** Messaggi client → server. */
 export type ClientMessage =
-  | { type: "join"; room: string; nickname: string; lang: string }
+  | {
+      type: "join";
+      room: string;
+      nickname: string;
+      lang: string;
+      /** Modalità richiesta (default "conversation"). Il primo che entra fissa
+       *  la modalità della stanza; "event" la rende una conferenza. */
+      mode?: RoomMode;
+      /** Ruolo richiesto (default "speaker"). In evento il pubblico usa "audience". */
+      role?: PeerRole;
+    }
   | { type: "ptt"; action: "request" | "release" }
   | { type: "update-lang"; lang: string }
   /** Cambia la tempistica della traduzione per l'intera stanza. */
   | { type: "set-timing"; timing: TranslationTiming }
+  /** Evento/Q&A: il pubblico alza o abbassa la mano per chiedere di parlare. */
+  | { type: "raise-hand"; raised: boolean }
+  /** Evento: il relatore concede la parola a un partecipante del pubblico. */
+  | { type: "grant-floor"; peerId: string }
+  /** Evento: il relatore ritira la parola concessa. */
+  | { type: "revoke-floor" }
   /**
    * Modalità single-device (due persone, un telefono): dichiara la direzione
    * di traduzione dell'enunciato corrente. Il parlante dice `source`, il
@@ -75,6 +109,12 @@ export type ServerMessage =
       peers: PeerInfo[];
       channel: ChannelState;
       translation: TranslationInfo;
+      /** Modalità effettiva della stanza (conversation/event). */
+      mode: RoomMode;
+      /** Evento: id dei partecipanti con la mano alzata, in ordine di richiesta. */
+      hands: string[];
+      /** Evento: id del partecipante a cui è concessa la parola, o null. */
+      floor: string | null;
     }
   | { type: "peer-joined"; peer: PeerInfo }
   | { type: "peer-left"; peerId: string }
@@ -82,7 +122,11 @@ export type ServerMessage =
   | { type: "channel"; channel: ChannelState }
   /** Nuova tempistica della traduzione, valida per tutta la stanza. */
   | { type: "timing"; timing: TranslationTiming }
-  | { type: "ptt-denied"; reason: "busy" }
+  /** Evento: coda aggiornata delle mani alzate (id in ordine di richiesta). */
+  | { type: "hands"; hands: string[] }
+  /** Evento: cambia il partecipante a cui è concessa la parola (o null). */
+  | { type: "floor"; floor: string | null }
+  | { type: "ptt-denied"; reason: "busy" | "not-granted" }
   /** Sottotitoli live nella lingua del destinatario. */
   | { type: "transcript"; speakerId: string; text: string; final: boolean }
   /**

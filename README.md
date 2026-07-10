@@ -79,6 +79,13 @@ babyl/
 - **Riuso dell'architettura**: è una stanza privata di un solo peer; il server traduce sorgente→destinazione e rimanda l'audio al mittente. La tempistica è forzata a **consecutiva** (voce tradotta al rilascio, quando il microfono è già chiuso) così non si innesca il loop acustico mic↔altoparlante.
 - Il rilevamento automatico della lingua è un raffinamento successivo: oggi il lato attivo si sceglie col toggle (deterministico, nessun errore su frasi brevi).
 
+**Modalità evento (conferenza + Q&A)**
+- Pensata per **fiere, convention ed eventi pubblici** con platea che parla lingue diverse: un **relatore** parla dal microfono dell'app e **tutti ascoltano nella propria lingua**, tradotti in tempo reale.
+- Si crea dall'onboarding scegliendo la scheda **Evento** (chi la crea è il relatore); il pubblico entra dal **QR/link** condiviso, che porta `?event=1`, come **ascoltatore col microfono disabilitato** (ascolto puro, nessun `getUserMedia` finché non serve).
+- **Auricolari obbligatori**: prima di entrare, un gate con invito animato chiede conferma di indossarli. I browser non espongono un modo affidabile per rilevare gli auricolari via hardware, quindi è un'**autodichiarazione** (conferma esplicita) — serve a evitare fischi e rientri quando l'audio tradotto potrebbe uscire dagli altoparlanti in sala.
+- **Q&A con alzata di mano**: lo spettatore **alza la mano**, il relatore la vede nella coda *Richieste di intervento* e **concede la parola**. Al beneficiario una voce sintetizzata **sul dispositivo** (Web Speech, nella sua lingua — gratuita, offline) annuncia *«microfono abilitato»*, il microfono si attiva e può intervenire nella **propria lingua**, arrivando **tradotto a tutti**. Il relatore può **ritirare la parola** in ogni momento (chiudendo anche il canale se il pubblico sta parlando).
+- **Il server resta l'unica autorità sul canale**: in modalità evento il pubblico ottiene il lock PTT **solo** se ha la parola concessa; altrimenti la richiesta è negata (`ptt-denied` con `reason: "not-granted"`). Riusa l'instradamento di traduzione esistente: nessuna nuova meccanica audio, solo ruoli e controllo del turno sopra il PTT half-duplex.
+
 **Resilienza**
 - Riconnessione automatica del client con backoff esponenziale (rete mobile instabile).
 - Heartbeat WebSocket lato server: i client spariti senza chiudere la connessione (telefono bloccato, cambio rete) vengono terminati, liberando presenza ed eventuale lock PTT.

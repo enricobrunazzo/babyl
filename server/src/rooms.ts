@@ -2,6 +2,7 @@ import type { WebSocket } from "ws";
 import type {
   ChannelState,
   PeerInfo,
+  RoomMode,
   ServerMessage,
   TranslationInfo,
   TranslationTiming,
@@ -57,6 +58,16 @@ export interface RoomStats {
 export class Room {
   readonly peers = new Map<string, Peer>();
   private speakerId: string | null = null;
+  /**
+   * Modalità della stanza. Parte "conversation" e diventa "event" (sticky) al
+   * primo ingresso che la richiede: così anche se il pubblico entra prima del
+   * relatore, la stanza è già una conferenza.
+   */
+  private mode: RoomMode = "conversation";
+  /** Evento: pubblico con la mano alzata, in ordine di richiesta (Q&A). */
+  private hands: string[] = [];
+  /** Evento: partecipante del pubblico a cui è concessa la parola, o null. */
+  private floor: string | null = null;
   /** Sessioni di traduzione attive, per coppia di lingue. */
   private sessions = new Map<string, Promise<TranslationSession>>();
   /**
@@ -143,7 +154,9 @@ export class Room {
     };
   }
 
-  join(info: PeerInfo, socket: WebSocket): void {
+  join(info: PeerInfo, socket: WebSocket, mode: RoomMode = "conversation"): void {
+    // La modalità evento è sticky: il primo ingresso che la chiede la fissa.
+    if (mode === "event") this.mode = "event";
     this.peers.set(info.id, { info, socket });
     this.broadcast({ type: "peer-joined", peer: info }, info.id);
     this.send(info.id, {
@@ -154,6 +167,9 @@ export class Room {
         .map((p) => p.info),
       channel: this.channel,
       translation: this.translation,
+      mode: this.mode,
+      hands: [...this.hands],
+      floor: this.floor,
     });
   }
 
@@ -165,7 +181,55 @@ export class Room {
       this.commitUtterance();
       this.broadcast({ type: "channel", channel: this.channel });
     }
+    // Evento: chi esce lascia la coda delle mani e, se aveva la parola, la libera.
+    if (this.hands.includes(peerId)) {
+      this.hands = this.hands.filter((id) => id !== peerId);
+      this.broadcast({ type: "hands", hands: [...this.hands] });
+    }
+    if (this.floor === peerId) {
+      this.floor = null;
+      this.broadcast({ type: "floor", floor: null });
+    }
     this.broadcast({ type: "peer-left", peerId });
+  }
+
+  /** Evento: il pubblico alza/abbassa la mano per chiedere la parola (Q&A). */
+  raiseHand(peerId: string, raised: boolean): void {
+    const peer = this.peers.get(peerId);
+    if (!peer || peer.info.role !== "audience") return;
+    const has = this.hands.includes(peerId);
+    if (raised && !has) this.hands.push(peerId);
+    else if (!raised && has) this.hands = this.hands.filter((id) => id !== peerId);
+    else return;
+    this.broadcast({ type: "hands", hands: [...this.hands] });
+  }
+
+  /**
+   * Evento: un relatore concede la parola a un partecipante del pubblico.
+   * Una sola parola concessa alla volta; il beneficiario esce dalla coda.
+   */
+  grantFloor(speakerId: string, targetId: string): void {
+    const speaker = this.peers.get(speakerId);
+    if (!speaker || speaker.info.role !== "speaker") return;
+    const target = this.peers.get(targetId);
+    if (!target || target.info.role !== "audience") return;
+    this.floor = targetId;
+    if (this.hands.includes(targetId)) {
+      this.hands = this.hands.filter((id) => id !== targetId);
+      this.broadcast({ type: "hands", hands: [...this.hands] });
+    }
+    this.broadcast({ type: "floor", floor: this.floor });
+  }
+
+  /** Evento: un relatore ritira la parola concessa (chiudendo il turno del Q&A). */
+  revokeFloor(speakerId: string): void {
+    const speaker = this.peers.get(speakerId);
+    if (!speaker || speaker.info.role !== "speaker") return;
+    if (this.floor === null) return;
+    // Se il pubblico sta ancora parlando, chiudi anche il canale.
+    if (this.speakerId === this.floor) this.releaseLock(this.floor);
+    this.floor = null;
+    this.broadcast({ type: "floor", floor: null });
   }
 
   updateLang(peerId: string, lang: string): void {
@@ -184,6 +248,17 @@ export class Room {
 
   /** Concede il lock solo se il canale è libero (o già del richiedente). */
   requestLock(peerId: string): void {
+    const peer = this.peers.get(peerId);
+    if (!peer) return;
+    // Evento: il pubblico può trasmettere solo con la parola concessa.
+    if (
+      this.mode === "event" &&
+      peer.info.role === "audience" &&
+      this.floor !== peerId
+    ) {
+      this.send(peerId, { type: "ptt-denied", reason: "not-granted" });
+      return;
+    }
     if (this.speakerId !== null && this.speakerId !== peerId) {
       this.send(peerId, { type: "ptt-denied", reason: "busy" });
       return;

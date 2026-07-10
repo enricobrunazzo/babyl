@@ -121,15 +121,19 @@ function handleMessage(
         );
         return;
       }
+      const mode = message.mode === "event" ? "event" : "conversation";
+      const role = message.role === "audience" ? "audience" : "speaker";
       session.roomId = roomId;
       rooms.get(roomId).join(
         {
           id: session.peerId,
           nickname,
           lang: String(message.lang).slice(0, 12),
+          role,
           joinedAt: Date.now(),
         },
         socket,
+        mode,
       );
       break;
     }
@@ -160,6 +164,24 @@ function handleMessage(
       if (!room) return;
       if (message.action === "request") room.requestLock(session.peerId);
       else room.releaseLock(session.peerId);
+      break;
+    }
+    case "raise-hand": {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      if (!room) return;
+      room.raiseHand(session.peerId, Boolean(message.raised));
+      break;
+    }
+    case "grant-floor": {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      if (!room) return;
+      room.grantFloor(session.peerId, String(message.peerId));
+      break;
+    }
+    case "revoke-floor": {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      if (!room) return;
+      room.revokeFloor(session.peerId);
       break;
     }
     case "leave": {

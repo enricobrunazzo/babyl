@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useRoom } from "../hooks/useRoom";
 import { languageByCode, LANGUAGES } from "../lib/languages";
-import { strings, type UIStrings } from "../lib/i18n";
+import { strings, eventStrings, type UIStrings } from "../lib/i18n";
 import type { TranslationTiming } from "../../../shared/protocol";
 import type { Profile } from "./Onboarding";
 import { MicButton } from "./MicButton";
@@ -56,9 +56,13 @@ const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
 export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   const isSolo = profile.mode === "solo";
+  const isEvent = profile.mode === "event";
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
-  const shareUrl = `${location.origin}/?room=${encodeURIComponent(roomId)}`;
+  // Il link di un evento porta ?event=1: chi lo apre entra come pubblico.
+  const shareUrl = `${location.origin}/?room=${encodeURIComponent(roomId)}${
+    isEvent ? "&event=1" : ""
+  }`;
 
   const copyLink = async () => {
     try {
@@ -70,19 +74,14 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
     }
   };
 
-  const nativeShare = async () => {
-    try {
-      await navigator.share({ title: "babyl", text: t.shareText, url: shareUrl });
-    } catch {
-      // Condivisione annullata o non supportata: il pannello resta aperto.
-    }
-  };
   const { client, state } = useRoom({
     room: roomId,
     nickname: profile.nickname,
     lang: profile.lang,
     debug: DEBUG,
     soloTarget: isSolo ? profile.langB : undefined,
+    mode: isEvent ? "event" : undefined,
+    role: isEvent ? profile.role : undefined,
   });
 
   // L'interfaccia della stanza segue la lingua d'ascolto del partecipante:
@@ -91,10 +90,19 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   // state.self.lang con fallback al profilo iniziale.
   const uiLang = state.self?.lang ?? profile.lang;
   const t = strings(uiLang);
+  const ev = eventStrings(uiLang);
   useEffect(() => {
     document.documentElement.lang = uiLang;
     document.documentElement.dir = t.dir;
   }, [uiLang, t.dir]);
+
+  const nativeShare = async () => {
+    try {
+      await navigator.share({ title: "babyl", text: t.shareText, url: shareUrl });
+    } catch {
+      // Condivisione annullata o non supportata: il pannello resta aperto.
+    }
+  };
 
   if (state.error === "mic-denied") {
     return (
@@ -116,15 +124,34 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   const timingList = timingOptions(t);
   const timing = timingList.find((o) => o.value === state.translation.timing);
 
+  // Modalità evento: ruolo e stato della parola (Q&A).
+  const role = state.role;
+  const isSpeaker = isEvent && role === "speaker";
+  const isAudience = isEvent && role === "audience";
+  const hasFloor = state.floor != null && state.floor === state.self?.id;
+  const handRaised = state.self ? state.hands.includes(state.self.id) : false;
+  const floorHolder = participants.find((p) => p.id === state.floor);
+  const handsPeers = state.hands
+    .map((id) => participants.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+  // Il pubblico senza la parola non ha il pulsante PTT: alza la mano.
+  const audienceWaiting = isAudience && !hasFloor;
+
   return (
     <main className="room" dir={t.dir} data-audio-frames={state.audioFramesReceived}>
       <header className="room-header">
         <div>
-          <h2>{isSolo ? t.soloTitle : roomId}</h2>
+          <h2>{isSolo ? t.soloTitle : isEvent ? `${ev.eventTitle} · ${roomId}` : roomId}</h2>
           <p className={`status status-${state.status}`}>
             {statusLabel(t, state.status)}
             {connected && ` · ${t.participantCount(participants.length)}`}
           </p>
+          {connected && isEvent && (
+            <p className={`event-role-badge ${isSpeaker ? "speaker" : "audience"}`}>
+              {isSpeaker ? `🎤 ${ev.badgeSpeaker}` : `🎧 ${ev.badgeAudience}`}
+            </p>
+          )}
           {connected && (
             <p
               className={`translation-badge ${state.translation.enabled ? "on" : "off"}`}
@@ -152,7 +179,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               </select>
             </label>
           )}
-          {connected && !isSolo && state.translation.enabled && (
+          {connected && !isSolo && !isAudience && state.translation.enabled && (
             <label className="field-inline">
               <span>{t.timingInline}</span>
               <select
@@ -172,7 +199,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           )}
         </div>
         <div className="header-actions">
-          {!isSolo && (
+          {!isSolo && !isAudience && (
             <button
               type="button"
               className="share-button"
@@ -196,7 +223,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
         >
           <div className="share-panel" onClick={(e) => e.stopPropagation()}>
             <h3>{t.inviteTitle}</h3>
-            <p className="share-hint">{t.inviteHint}</p>
+            <p className="share-hint">{isEvent ? ev.eventShareHint : t.inviteHint}</p>
             <QRCode text={shareUrl} />
             <code className="share-url">{shareUrl}</code>
             <div className="share-actions">
@@ -213,16 +240,18 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
                 </button>
               )}
             </div>
-            <button
-              type="button"
-              className="share-new-room"
-              onClick={() => {
-                setShowShare(false);
-                onNewRoom();
-              }}
-            >
-              {t.newRoom}
-            </button>
+            {!isEvent && (
+              <button
+                type="button"
+                className="share-new-room"
+                onClick={() => {
+                  setShowShare(false);
+                  onNewRoom();
+                }}
+              >
+                {t.newRoom}
+              </button>
+            )}
             <button
               type="button"
               className="share-close"
@@ -250,6 +279,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               <span className="participant-name">
                 {peer.nickname}
                 {peer.id === state.self?.id && ` ${t.you}`}
+                {peer.role === "speaker" && isEvent && " 🎤"}
               </span>
               {lang && (
                 <span className="participant-lang">
@@ -263,7 +293,65 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
       </ul>
       )}
 
-      {isSolo && state.solo ? (
+      {/* Evento · relatore: coda delle richieste di intervento (Q&A). */}
+      {isSpeaker && (
+        <section className="hands-queue" aria-label={ev.handsQueueTitle}>
+          <h3>{ev.handsQueueTitle}</h3>
+          {floorHolder && (
+            <div className="floor-active">
+              <span>{ev.floorActiveWith(floorHolder.nickname)}</span>
+              <button
+                type="button"
+                className="revoke-floor"
+                onClick={() => client.revokeFloor()}
+              >
+                {ev.revokeFloor}
+              </button>
+            </div>
+          )}
+          {handsPeers.length === 0 ? (
+            <p className="no-hands">{ev.noHands}</p>
+          ) : (
+            <ul className="hands-list">
+              {handsPeers.map((peer) => {
+                const lang = languageByCode(peer.lang);
+                return (
+                  <li key={peer.id}>
+                    <span className="participant-flag" aria-hidden="true">
+                      {lang?.flag ?? "🌐"}
+                    </span>
+                    <span className="participant-name">✋ {peer.nickname}</span>
+                    <button
+                      type="button"
+                      className="grant-floor"
+                      onClick={() => client.grantFloor(peer.id)}
+                    >
+                      {ev.grantFloor}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {/* Evento · pubblico in attesa: alza la mano (nessun microfono). */}
+      {audienceWaiting ? (
+        <div className="audience-controls">
+          <p className="audience-hint" role="status">
+            {handRaised ? ev.handRaised : ev.audienceListenHint}
+          </p>
+          <button
+            type="button"
+            className={`raise-hand${handRaised ? " raised" : ""}`}
+            disabled={!connected}
+            onClick={() => client.raiseHand(!handRaised)}
+          >
+            {handRaised ? ev.lowerHand : ev.raiseHand}
+          </button>
+        </div>
+      ) : isSolo && state.solo ? (
         <div className="solo-mics">
           <div className="solo-mics-row">
             {[profile.lang, profile.langB]
@@ -296,19 +384,31 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           </p>
         </div>
       ) : (
-        <PTTButton
-          state={pttState}
-          speakerName={state.channel.speakerName}
-          disabled={!connected}
-          labels={{
-            free: t.pttFree,
-            talking: t.pttTalking,
-            blocked: t.pttBlocked,
-            speaking: t.pttSpeaking,
-          }}
-          onPress={() => client.pttDown()}
-          onRelease={() => client.pttUp()}
-        />
+        <>
+          {hasFloor && (
+            <p className="mic-enabled-notice" role="status">
+              🎙️ {ev.micEnabledNotice}
+            </p>
+          )}
+          {isAudience && state.micGrantDenied && (
+            <p className="translation-error" role="status">
+              {ev.micGrantDenied}
+            </p>
+          )}
+          <PTTButton
+            state={pttState}
+            speakerName={state.channel.speakerName}
+            disabled={!connected || (isAudience && !hasFloor)}
+            labels={{
+              free: t.pttFree,
+              talking: t.pttTalking,
+              blocked: t.pttBlocked,
+              speaking: t.pttSpeaking,
+            }}
+            onPress={() => client.pttDown()}
+            onRelease={() => client.pttUp()}
+          />
+        </>
       )}
 
       {state.translationError && (
