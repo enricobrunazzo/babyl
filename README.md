@@ -33,18 +33,20 @@ babyl/
 └── web/                      # SPA mobile-first (Vite + React + TypeScript)
     ├── public/pcm-capture-worklet.js  # Cattura microfono (AudioWorklet)
     └── src/
-        ├── components/       # Onboarding, Room, PTTButton
+        ├── components/       # Onboarding, Room, PTTButton, MicButton
         ├── hooks/useRoom.ts  # Stato stanza reattivo (useSyncExternalStore)
         └── lib/
             ├── roomClient.ts # WebSocket, cattura/riproduzione PCM, half-duplex
             ├── pcm.ts        # Conversioni PCM16 ↔ ArrayBuffer (frame binari)
-            └── languages.ts  # Rilevamento lingua da navigator.language
+            ├── languages.ts  # Elenco lingue + rilevamento da navigator.language
+            └── i18n.ts       # Stringhe UI localizzate (14 lingue, RTL per l'arabo)
 ```
 
 ## Cosa implementa l'MVP (rif. documento di architettura)
 
 **§2.1 — Onboarding invisibile**
 - Lingua auto-compilata da `navigator.language` (es. `it-IT` → Italiano), menu a tendina minimale per l'override manuale.
+- **Interfaccia localizzata**: il testo dell'app segue la lingua scelta dal partecipante. Chi entra e sceglie *English* vede onboarding e stanza in inglese, chi sceglie *Deutsch* in tedesco, e così via per tutte le 14 lingue supportate (`web/src/lib/i18n.ts`, con fallback all'inglese). In stanza segue la lingua d'ascolto, quindi cambia a caldo anche dal selettore *Lingua di ascolto*; per l'arabo la direzione del testo passa automaticamente a **RTL**.
 - Nickname a singolo tap con `autocomplete="given-name"`.
 - Sistema rigorosamente **stateless**: nessun dato in localStorage, nessun account.
 - Un unico pulsante **ENTRA** con disclaimer legale e checkbox di validazione dell'età (16+ o consenso dei genitori).
