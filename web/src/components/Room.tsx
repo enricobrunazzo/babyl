@@ -252,56 +252,6 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
       </ul>
       )}
 
-      {state.subtitle && state.subtitle.text && (
-        <div className="subtitle" role="log" aria-live="polite">
-          {speaker && <span className="subtitle-speaker">{speaker.nickname}</span>}
-          <p>{state.subtitle.text}</p>
-        </div>
-      )}
-
-      {state.translationError && (
-        <div className="translation-error" role="status">
-          Traduzione temporaneamente non disponibile (motore sovraccarico).
-          Riprova tra qualche secondo.
-        </div>
-      )}
-
-      {DEBUG && (
-        <dl className="debug-panel" aria-label="Metriche diagnostiche">
-          <div>
-            <dt>Banda ↑</dt>
-            <dd>{state.metrics.upKbps} kbit/s</dd>
-          </div>
-          <div>
-            <dt>Banda ↓</dt>
-            <dd>{state.metrics.downKbps} kbit/s</dd>
-          </div>
-          <div>
-            <dt>Latenza</dt>
-            <dd>
-              {state.metrics.lastLatencyMs !== null
-                ? `${state.metrics.lastLatencyMs} ms`
-                : "—"}
-            </dd>
-          </div>
-          <div>
-            <dt>Jitter buffer</dt>
-            <dd>{state.metrics.jitterMs} ms</dd>
-          </div>
-          <div>
-            <dt>Frame ricevuti</dt>
-            <dd>{state.metrics.framesReceived}</dd>
-          </div>
-          <div>
-            <dt>Totale ↑ / ↓</dt>
-            <dd>
-              {(state.metrics.upBytes / 1024).toFixed(0)} /{" "}
-              {(state.metrics.downBytes / 1024).toFixed(0)} KB
-            </dd>
-          </div>
-        </dl>
-      )}
-
       {isSolo && state.solo ? (
         <div className="solo-mics">
           <div className="solo-mics-row">
@@ -341,6 +291,56 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           onPress={() => client.pttDown()}
           onRelease={() => client.pttUp()}
         />
+      )}
+
+      {state.translationError && (
+        <div className="translation-error" role="status">
+          Traduzione temporaneamente non disponibile (motore sovraccarico).
+          Riprova tra qualche secondo.
+        </div>
+      )}
+
+      {state.subtitle && state.subtitle.text && (
+        <div className="subtitle" role="log" aria-live="polite">
+          {speaker && <span className="subtitle-speaker">{speaker.nickname}</span>}
+          <p>{state.subtitle.text}</p>
+        </div>
+      )}
+
+      {DEBUG && (
+        <dl className="debug-panel" aria-label="Metriche diagnostiche">
+          <div>
+            <dt>Banda ↑</dt>
+            <dd>{state.metrics.upKbps} kbit/s</dd>
+          </div>
+          <div>
+            <dt>Banda ↓</dt>
+            <dd>{state.metrics.downKbps} kbit/s</dd>
+          </div>
+          <div>
+            <dt>Latenza</dt>
+            <dd>
+              {state.metrics.lastLatencyMs !== null
+                ? `${state.metrics.lastLatencyMs} ms`
+                : "—"}
+            </dd>
+          </div>
+          <div>
+            <dt>Jitter buffer</dt>
+            <dd>{state.metrics.jitterMs} ms</dd>
+          </div>
+          <div>
+            <dt>Frame ricevuti</dt>
+            <dd>{state.metrics.framesReceived}</dd>
+          </div>
+          <div>
+            <dt>Totale ↑ / ↓</dt>
+            <dd>
+              {(state.metrics.upBytes / 1024).toFixed(0)} /{" "}
+              {(state.metrics.downBytes / 1024).toFixed(0)} KB
+            </dd>
+          </div>
+        </dl>
       )}
     </main>
   );

@@ -399,7 +399,6 @@ main {
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  padding-bottom: 24px;
 }
 
 .solo-mics-row {
@@ -517,7 +516,7 @@ main {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 1;
+  max-height: 40vh;
   overflow-y: auto;
 }
 
@@ -558,7 +557,6 @@ main {
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  padding-bottom: 24px;
 }
 
 .ptt-button {
