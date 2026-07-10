@@ -139,3 +139,7 @@ HTTPS è obbligatorio in produzione: senza secure context il browser nega l'acce
 | `npm run typecheck` | Typecheck di tutti i workspace |
 | `npm run test:unit` | Test unitari del server |
 | `npm run test:e2e` | Test end-to-end con due browser (richiede build) |
+
+## Changelog
+
+Le modifiche degne di nota sono annotate in [`CHANGELOG.md`](CHANGELOG.md).
