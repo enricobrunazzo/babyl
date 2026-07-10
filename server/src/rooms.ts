@@ -57,10 +57,16 @@ export interface RoomStats {
 export class Room {
   readonly peers = new Map<string, Peer>();
   private speakerId: string | null = null;
-  /** Ultimo parlante: l'audio tradotto arriva dopo il rilascio del lock. */
-  private lastSpeakerId: string | null = null;
-  /** Sessioni di traduzione attive, per lingua di destinazione. */
+  /** Sessioni di traduzione attive, per coppia di lingue. */
   private sessions = new Map<string, Promise<TranslationSession>>();
+  /**
+   * Parlante il cui enunciato ciascuna sessione sta traducendo, per chiave di
+   * sessione. L'audio tradotto torna dal motore in ritardo e va instradato in
+   * base a chi l'ha pronunciato, non a chi tiene il canale in quel momento:
+   * altrimenti in una conversazione a 3+ la coda di traduzione di un parlante
+   * verrebbe esclusa proprio dall'ascoltatore che ha appena preso il PTT.
+   */
+  private sessionSpeaker = new Map<string, string>();
 
   // Contatori diagnostici (esposti da GET /metrics).
   private mBytesIn = 0;
@@ -95,6 +101,7 @@ export class Room {
       void session.then((s) => s.close()).catch(() => {});
     }
     this.sessions.clear();
+    this.sessionSpeaker.clear();
     this.broadcast({ type: "timing", timing });
   }
 
@@ -182,7 +189,6 @@ export class Room {
       return;
     }
     this.speakerId = peerId;
-    this.lastSpeakerId = peerId;
     if (this.lockStartedAt === null) this.lockStartedAt = Date.now();
     this.broadcast({ type: "channel", channel: this.channel });
   }
@@ -228,7 +234,12 @@ export class Room {
     if (!this.provider) return;
     const durationMs = pcmDurationMs(data.length);
     for (const lang of this.listenerLangs(speaker.info.lang)) {
-      this.pairStat(`${speaker.info.lang}->${lang}`).inMs += durationMs;
+      const key = `${speaker.info.lang}->${lang}`;
+      this.pairStat(key).inMs += durationMs;
+      // Chi parla ora possiede l'enunciato che questa sessione tradurrà: lo
+      // fissa così la coda tradotta verrà instradata a lui anche se nel
+      // frattempo un altro peer prende il canale.
+      this.sessionSpeaker.set(key, peerId);
       void this.sessionFor(speaker.info.lang, lang)
         .then((session) => session.appendAudio(encoded()))
         .catch(() => {});
@@ -274,7 +285,7 @@ export class Room {
 
     session = this.provider!.createSession(sourceLang, targetLang, {
       onAudio: (chunk) => {
-        const speakerId = this.lastSpeakerId;
+        const speakerId = this.sessionSpeaker.get(key);
         if (!speakerId) return;
         const audio = Buffer.from(chunk, "base64");
         this.pairStat(key).outMs += pcmDurationMs(audio.length);
@@ -286,7 +297,7 @@ export class Room {
         }
       },
       onTranscript: (text, final) => {
-        const speakerId = this.lastSpeakerId;
+        const speakerId = this.sessionSpeaker.get(key);
         if (!speakerId) return;
         for (const peer of this.peers.values()) {
           if (peer.info.id !== speakerId && peer.info.lang === targetLang) {
@@ -307,12 +318,14 @@ export class Room {
         // Sessione compromessa: la prossima pressione PTT ne creerà una nuova.
         this.sessions.get(key)?.then((s) => s.close()).catch(() => {});
         this.sessions.delete(key);
+        this.sessionSpeaker.delete(key);
       },
     }, this.timing);
     this.sessions.set(key, session);
     session.catch((error: Error) => {
       console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);
       this.sessions.delete(key);
+      this.sessionSpeaker.delete(key);
       this.notifyTranslationError(targetLang);
     });
     return session;

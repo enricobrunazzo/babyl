@@ -229,6 +229,41 @@ test("sottotitoli: la trascrizione arriva solo agli ascoltatori della lingua", a
   assert.equal(ofType(a, "transcript").length, 0);
 });
 
+test("conversazione a 3: la coda tradotta di un enunciato va ai suoi ascoltatori anche se un altro peer ha già preso il PTT", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("tre", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  const c = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.join(peer("c", "de"), c as unknown as WebSocket);
+
+  // a (it) parla: si apre la sessione it->de per gli ascoltatori tedeschi.
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+  room.releaseLock("a");
+  const bBefore = b.binary.length;
+  const cBefore = c.binary.length;
+
+  // b prende il canale prima che la coda di traduzione di a rientri dal motore.
+  room.requestLock("b");
+
+  // Ora arriva la coda tradotta dell'enunciato di a (callback asincrona).
+  provider.sessions[0].callbacks.onAudio("coda");
+
+  // Entrambi gli ascoltatori tedeschi la ricevono: b non deve essere escluso
+  // solo perché nel frattempo tiene il PTT.
+  assert.equal(b.binary.length, bBefore + 1);
+  assert.equal(c.binary.length, cBefore + 1);
+
+  // Il sottotitolo resta attribuito ad a (chi ha pronunciato l'enunciato).
+  provider.sessions[0].callbacks.onTranscript("Hallo", true);
+  assert.equal(lastOfType(b, "transcript")?.speakerId, "a");
+  assert.equal(lastOfType(c, "transcript")?.speakerId, "a");
+});
+
 test("leave dello speaker: canale libero e commit dell'enunciato", async () => {
   const provider = new FakeProvider();
   const room = new Room("demo", provider);
