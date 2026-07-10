@@ -1,0 +1,59 @@
+# Changelog
+
+Tutte le modifiche degne di nota a **babyl** sono annotate qui.
+
+Il formato segue [Keep a Changelog](https://keepachangelog.com/it/1.1.0/) e il
+progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
+
+## [Non rilasciato]
+
+### Corretto
+
+- **Instradamento dell'audio tradotto nelle stanze a 3+ interlocutori.** Le
+  callback delle sessioni di traduzione consegnavano la voce (e i sottotitoli)
+  in base a chi teneva il canale nel momento in cui la coda tradotta rientrava
+  dal motore — asincrona e in ritardo — invece che a chi aveva pronunciato
+  l'enunciato. Se un altro partecipante prendeva il PTT prima dell'arrivo della
+  coda, la traduzione veniva instradata escludendo proprio quell'ascoltatore
+  (audio mancante) e i sottotitoli finivano attribuiti al parlante sbagliato.
+  Ora ogni sessione ricorda il parlante del proprio enunciato, fissato al
+  momento dell'invio dell'audio, così la traduzione raggiunge sempre gli
+  ascoltatori giusti anche se nel frattempo il canale passa di mano. Con solo
+  due partecipanti il problema non si manifestava. (`server/src/rooms.ts`)
+
+### Documentazione
+
+- README: documentato l'instradamento per parlante come garanzia di
+  comportamento nelle stanze multi-interlocutore.
+
+## [0.1.0] — MVP
+
+Prima base funzionante: piattaforma web-first per la traduzione simultanea
+speech-to-speech, half-duplex e server-centrica.
+
+### Aggiunto
+
+- **Onboarding invisibile**: lingua auto-compilata da `navigator.language`,
+  nickname a singolo tap, sistema stateless (nessun account, nessun
+  localStorage), dark mode assoluta.
+- **Interfaccia localizzata** in 14 lingue con fallback all'inglese e direzione
+  RTL per l'arabo.
+- **Push-to-Talk half-duplex** con lock del canale autoritativo lato server:
+  richieste concorrenti serializzate, nessuna sovrapposizione di tracce.
+- **Traduzione simultanea S2S** via OpenAI Realtime API, con instradamento
+  server-centrico (voce originale a chi condivide la lingua, tradotta alle
+  altre) e sottotitoli live per ascoltatore.
+- **Preset di tempistica** selezionabili in stanza: `streaming` (simultanea),
+  `interview` (frasi intere), `consecutive` (al rilascio del PTT).
+- **Modalità single-device** (un telefono, due persone) additiva rispetto alla
+  modalità stanza.
+- **Condivisione stanza** via QR, copia link e Web Share.
+- **Trasporto audio a frame binari** (PCM16 24 kHz), senza l'overhead base64 sul
+  hop client↔server.
+- **Resilienza**: riconnessione client con backoff esponenziale, heartbeat
+  WebSocket lato server, retry a backoff sull'apertura delle sessioni di
+  traduzione con avviso non fatale al fallimento.
+- **Diagnostica**: endpoint `GET /metrics` (consumi e stima di costo) e pannello
+  `?debug=1` lato client (banda, latenza, jitter buffer).
+
+[Non rilasciato]: https://github.com/enricobrunazzo/babyl/compare/main...HEAD
