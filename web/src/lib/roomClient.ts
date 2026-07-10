@@ -357,13 +357,17 @@ export class RoomClient {
     });
   }
 
-  /** Scambia i due lati della conversazione single-device (toggle A⇄B). */
-  toggleSolo(): void {
+  /**
+   * Imposta il lato che parla in single-device scegliendo la lingua sorgente;
+   * la destinazione è l'altra lingua della coppia. No-op se è già la sorgente.
+   */
+  setSoloSource(lang: string): void {
     const solo = this.state.solo;
-    if (!solo) return;
-    const swapped = { source: solo.target, target: solo.source };
-    this.send({ type: "solo-config", ...swapped });
-    this.setState({ solo: swapped });
+    if (!solo || solo.source === lang) return;
+    const target = lang === solo.target ? solo.source : solo.target;
+    const next = { source: lang, target };
+    this.send({ type: "solo-config", ...next });
+    this.setState({ solo: next });
   }
 
   /** Cambia la tempistica della traduzione (impostazione di stanza). */

@@ -224,35 +224,36 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
 
       {isSolo && state.solo ? (
         <div className="solo-control">
-          {(() => {
-            const src = languageByCode(state.solo.source);
-            const tgt = languageByCode(state.solo.target);
-            return (
-              <>
-                <p className="solo-direction">
-                  <span className="solo-side speaking">
-                    {src?.flag} {src?.nativeName ?? state.solo.source}
-                  </span>
-                  <span className="solo-arrow" aria-hidden="true">→</span>
-                  <span className="solo-side">
-                    {tgt?.flag} {tgt?.nativeName ?? state.solo.target}
-                  </span>
-                </p>
-                <small className="field-help">
-                  Chi parla ora usa la lingua a sinistra; la traduzione esce al
-                  rilascio del pulsante.
-                </small>
-                <button
-                  type="button"
-                  className="solo-swap"
-                  onClick={() => client.toggleSolo()}
-                  disabled={pttState === "talking"}
-                >
-                  ⇄ Inverti i lati
-                </button>
-              </>
-            );
-          })()}
+          <p className="solo-label">Chi parla ora</p>
+          <div className="solo-langs">
+            {[profile.lang, profile.langB]
+              .filter((c): c is string => Boolean(c))
+              .map((code) => {
+                const lang = languageByCode(code);
+                const active = state.solo?.source === code;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    className={`solo-lang${active ? " active" : ""}`}
+                    aria-pressed={active}
+                    disabled={pttState === "talking"}
+                    onClick={() => client.setSoloSource(code)}
+                  >
+                    <span className="solo-lang-flag" aria-hidden="true">
+                      {lang?.flag ?? "🌐"}
+                    </span>
+                    <span className="solo-lang-name">
+                      {lang?.nativeName ?? code}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+          <small className="field-help">
+            Tocca la lingua di chi sta per parlare; la traduzione esce nell'altra
+            al rilascio del pulsante.
+          </small>
         </div>
       ) : (
       <ul className="participants">

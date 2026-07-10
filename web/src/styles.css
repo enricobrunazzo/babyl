@@ -406,38 +406,53 @@ main {
   text-align: center;
 }
 
-.solo-direction {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 1.1rem;
-}
-
-.solo-side {
+.solo-label {
+  font-size: 0.8rem;
   color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
-.solo-side.speaking {
+.solo-langs {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+.solo-lang {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.solo-lang-flag {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.solo-lang-name {
+  font-size: 0.95rem;
+}
+
+.solo-lang.active {
+  border-color: var(--free);
+  background: rgba(34, 197, 94, 0.12);
   color: var(--text);
   font-weight: 600;
 }
 
-.solo-arrow {
-  color: var(--accent);
-}
-
-.solo-swap {
-  padding: 12px 20px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-.solo-swap:disabled {
-  opacity: 0.4;
+.solo-lang:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
