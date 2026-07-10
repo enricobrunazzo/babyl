@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { detectLanguage, LANGUAGES } from "../lib/languages";
+import { strings } from "../lib/i18n";
 import { newRoomId } from "../lib/roomName";
 import { BabylMark } from "./BabylLogo";
 
@@ -43,12 +44,21 @@ export function Onboarding({ roomId, onRoomChange, onEnter }: Props) {
     consent &&
     (solo ? langsDiffer : nickname.trim().length > 0);
 
+  // L'interfaccia segue la lingua scelta: chi seleziona "English" vede
+  // l'onboarding in inglese, e così via. La direzione del testo (RTL per
+  // l'arabo) è applicata all'intero documento.
+  const t = strings(lang);
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = t.dir;
+  }, [lang, t.dir]);
+
   return (
-    <main className="onboarding">
+    <main className="onboarding" dir={t.dir}>
       <header className="brand">
         <BabylMark size={64} className="brand-mark" />
         <h1>babyl</h1>
-        <p>Traduzione simultanea. Zero download, zero account.</p>
+        <p>{t.tagline}</p>
       </header>
 
       <form
@@ -57,21 +67,21 @@ export function Onboarding({ roomId, onRoomChange, onEnter }: Props) {
           event.preventDefault();
           if (!canEnter) return;
           onEnter({
-            nickname: nickname.trim() || (solo ? "Dispositivo" : ""),
+            nickname: nickname.trim() || (solo ? t.deviceName : ""),
             lang,
             mode,
             langB: solo ? langB : undefined,
           });
         }}
       >
-        <div className="mode-switch" role="group" aria-label="Modalità">
+        <div className="mode-switch" role="group" aria-label={t.modeGroupLabel}>
           <button
             type="button"
             className={`mode-option${solo ? "" : " active"}`}
             aria-pressed={!solo}
             onClick={() => setMode("room")}
           >
-            In stanza
+            {t.modeRoom}
           </button>
           <button
             type="button"
@@ -79,20 +89,18 @@ export function Onboarding({ roomId, onRoomChange, onEnter }: Props) {
             aria-pressed={solo}
             onClick={() => setMode("solo")}
           >
-            Un solo dispositivo
+            {t.modeSolo}
           </button>
         </div>
         <label className="field">
-          <span>{solo ? "Lingua A (prima persona)" : "Lingua in cui vuoi ascoltare"}</span>
+          <span>{solo ? t.langAlabel : t.listenLangLabel}</span>
           <small className="field-help">
-            {solo
-              ? "Una delle due lingue parlate al dispositivo."
-              : "Babyl tradurrà gli altri partecipanti in questa lingua."}
+            {solo ? t.langAhelp : t.listenLangHelp}
           </small>
           <select
             value={lang}
             onChange={(event) => setLang(event.target.value)}
-            aria-label="Seleziona la prima lingua"
+            aria-label={t.selectFirstLang}
           >
             {LANGUAGES.map((l) => (
               <option key={l.code} value={l.code}>
@@ -104,14 +112,12 @@ export function Onboarding({ roomId, onRoomChange, onEnter }: Props) {
 
         {solo && (
           <label className="field">
-            <span>Lingua B (seconda persona)</span>
-            <small className="field-help">
-              L'altra lingua: il dispositivo traduce tra le due a ogni turno.
-            </small>
+            <span>{t.langBlabel}</span>
+            <small className="field-help">{t.langBhelp}</small>
             <select
               value={langB}
               onChange={(event) => setLangB(event.target.value)}
-              aria-label="Seleziona la seconda lingua"
+              aria-label={t.selectSecondLang}
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>
@@ -120,23 +126,21 @@ export function Onboarding({ roomId, onRoomChange, onEnter }: Props) {
               ))}
             </select>
             {!langsDiffer && (
-              <small className="field-error">
-                Le due lingue devono essere diverse.
-              </small>
+              <small className="field-error">{t.langsMustDiffer}</small>
             )}
           </label>
         )}
 
         {!solo && (
           <label className="field">
-            <span>Il tuo nome</span>
+            <span>{t.nameLabel}</span>
             <input
               type="text"
               name="nickname"
               autoComplete="given-name"
               autoFocus
               maxLength={40}
-              placeholder="Come ti chiami?"
+              placeholder={t.namePlaceholder}
               value={nickname}
               onChange={(event) => setNickname(event.target.value)}
             />
@@ -149,51 +153,40 @@ export function Onboarding({ roomId, onRoomChange, onEnter }: Props) {
             checked={consent}
             onChange={(event) => setConsent(event.target.checked)}
           />
-          <span>Dichiaro di avere più di 16 anni o il consenso dei genitori.</span>
+          <span>{t.consent}</span>
         </label>
 
         {!solo && (
           <label className="field">
-            <span>Stanza</span>
-            <small className="field-help">
-              Il nome è il link: chi ce l'ha entra qui. Cambialo o generane uno
-              nuovo per una stanza tutta tua.
-            </small>
+            <span>{t.roomLabel}</span>
+            <small className="field-help">{t.roomHelp}</small>
             <div className="room-field">
               <input
                 type="text"
                 value={roomId}
                 maxLength={64}
                 onChange={(event) => onRoomChange(event.target.value)}
-                aria-label="Nome della stanza"
+                aria-label={t.roomAria}
               />
               <button
                 type="button"
                 className="room-generate"
                 onClick={() => onRoomChange(newRoomId())}
               >
-                Genera
+                {t.generate}
               </button>
             </div>
           </label>
         )}
 
         <button type="submit" className="enter-button" disabled={!canEnter}>
-          ENTRA
+          {t.enter}
         </button>
 
-        <p className="disclaimer">
-          Cliccando su ENTRA, accetti i Termini di Servizio e acconsenti
-          all'elaborazione temporanea dell'audio per la traduzione in tempo
-          reale.
-        </p>
+        <p className="disclaimer">{t.disclaimer}</p>
       </form>
 
-      {solo && (
-        <footer className="room-hint">
-          Un telefono, due persone: parla a turno, tocca ⇄ per invertire.
-        </footer>
-      )}
+      {solo && <footer className="room-hint">{t.soloHint}</footer>}
     </main>
   );
 }

@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRoom } from "../hooks/useRoom";
 import { languageByCode, LANGUAGES } from "../lib/languages";
+import { strings, type UIStrings } from "../lib/i18n";
 import type { TranslationTiming } from "../../../shared/protocol";
 import type { Profile } from "./Onboarding";
 import { MicButton } from "./MicButton";
@@ -8,24 +9,27 @@ import { PTTButton } from "./PTTButton";
 import { QRCode } from "./QRCode";
 
 /** Preset di tempistica offerti in stanza (condivisi da tutti i partecipanti). */
-const TIMING_OPTIONS: { value: TranslationTiming; label: string; hint: string }[] =
-  [
+function timingOptions(
+  t: UIStrings,
+): { value: TranslationTiming; label: string; hint: string }[] {
+  return [
     {
       value: "streaming",
-      label: "Conversazione (simultanea)",
-      hint: "La traduzione parte mentre parli, effetto interprete TV.",
+      label: t.timingStreamingLabel,
+      hint: t.timingStreamingHint,
     },
     {
       value: "interview",
-      label: "Intervista (frasi intere)",
-      hint: "Attende le pause più lunghe: turni netti, niente frasi spezzate.",
+      label: t.timingInterviewLabel,
+      hint: t.timingInterviewHint,
     },
     {
       value: "consecutive",
-      label: "Consecutiva (al rilascio)",
-      hint: "Traduce solo quando rilasci il pulsante: turni puliti.",
+      label: t.timingConsecutiveLabel,
+      hint: t.timingConsecutiveHint,
     },
   ];
+}
 
 interface Props {
   roomId: string;
@@ -35,15 +39,18 @@ interface Props {
   onNewRoom: () => void;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  idle: "Inizializzazione…",
-  mic: "Attivazione microfono…",
-  connecting: "Connessione alla stanza…",
-  connected: "Connesso",
-  reconnecting: "Riconnessione…",
-  closed: "Disconnesso",
-  error: "Errore di connessione",
-};
+function statusLabel(t: UIStrings, status: string): string {
+  const labels: Record<string, string> = {
+    idle: t.statusIdle,
+    mic: t.statusMic,
+    connecting: t.statusConnecting,
+    connected: t.statusConnected,
+    reconnecting: t.statusReconnecting,
+    closed: t.statusClosed,
+    error: t.statusError,
+  };
+  return labels[status] ?? status;
+}
 
 const DEBUG = new URLSearchParams(location.search).get("debug") === "1";
 
@@ -65,7 +72,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
 
   const nativeShare = async () => {
     try {
-      await navigator.share({ title: "babyl", text: "Entra nella stanza", url: shareUrl });
+      await navigator.share({ title: "babyl", text: t.shareText, url: shareUrl });
     } catch {
       // Condivisione annullata o non supportata: il pannello resta aperto.
     }
@@ -78,16 +85,24 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
     soloTarget: isSolo ? profile.langB : undefined,
   });
 
+  // L'interfaccia della stanza segue la lingua d'ascolto del partecipante:
+  // chi ascolta in inglese vede la stanza in inglese. In stanza la lingua può
+  // cambiare a caldo (selettore "Lingua di ascolto"), quindi seguiamo
+  // state.self.lang con fallback al profilo iniziale.
+  const uiLang = state.self?.lang ?? profile.lang;
+  const t = strings(uiLang);
+  useEffect(() => {
+    document.documentElement.lang = uiLang;
+    document.documentElement.dir = t.dir;
+  }, [uiLang, t.dir]);
+
   if (state.error === "mic-denied") {
     return (
-      <main className="room room-error">
-        <h2>Microfono non disponibile</h2>
-        <p>
-          Babyl ha bisogno del microfono per la traduzione in tempo reale.
-          Consenti l'accesso dalle impostazioni del browser e riprova.
-        </p>
+      <main className="room room-error" dir={t.dir}>
+        <h2>{t.micDeniedTitle}</h2>
+        <p>{t.micDeniedBody}</p>
         <button type="button" className="enter-button" onClick={onLeave}>
-          Torna all'inizio
+          {t.backToStart}
         </button>
       </main>
     );
@@ -98,34 +113,33 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   const connected = state.status === "connected";
   const speaker = participants.find((p) => p.id === state.subtitle?.speakerId);
   const selfLanguage = languageByCode(state.self?.lang ?? "");
-  const timing = TIMING_OPTIONS.find((t) => t.value === state.translation.timing);
+  const timingList = timingOptions(t);
+  const timing = timingList.find((o) => o.value === state.translation.timing);
 
   return (
-    <main className="room" data-audio-frames={state.audioFramesReceived}>
+    <main className="room" dir={t.dir} data-audio-frames={state.audioFramesReceived}>
       <header className="room-header">
         <div>
-          <h2>{isSolo ? "Un solo dispositivo" : roomId}</h2>
+          <h2>{isSolo ? t.soloTitle : roomId}</h2>
           <p className={`status status-${state.status}`}>
-            {STATUS_LABELS[state.status]}
-            {connected && ` · ${participants.length} partecipant${participants.length === 1 ? "e" : "i"}`}
+            {statusLabel(t, state.status)}
+            {connected && ` · ${t.participantCount(participants.length)}`}
           </p>
           {connected && (
             <p
               className={`translation-badge ${state.translation.enabled ? "on" : "off"}`}
             >
-              {state.translation.enabled
-                ? "Traduzione simultanea attiva"
-                : "Voce originale (traduzione non configurata)"}
+              {state.translation.enabled ? t.translationOn : t.translationOff}
             </p>
           )}
           {connected && !isSolo && selfLanguage && (
             <p className="language-badge">
-              Ascolti in: {selfLanguage.flag} {selfLanguage.nativeName}
+              {t.listeningIn} {selfLanguage.flag} {selfLanguage.nativeName}
             </p>
           )}
           {connected && !isSolo && state.self && (
             <label className="field-inline">
-              <span>Lingua di ascolto</span>
+              <span>{t.listenLangInline}</span>
               <select
                 value={state.self.lang}
                 onChange={(e) => client.updateLanguage(e.target.value)}
@@ -140,16 +154,16 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           )}
           {connected && !isSolo && state.translation.enabled && (
             <label className="field-inline">
-              <span>Tempistica</span>
+              <span>{t.timingInline}</span>
               <select
                 value={state.translation.timing}
                 onChange={(e) =>
                   client.setTiming(e.target.value as TranslationTiming)
                 }
               >
-                {TIMING_OPTIONS.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
+                {timingList.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -164,11 +178,11 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               className="share-button"
               onClick={() => setShowShare(true)}
             >
-              Condividi
+              {t.share}
             </button>
           )}
           <button type="button" className="leave-button" onClick={onLeave}>
-            Esci
+            {t.leave}
           </button>
         </div>
       </header>
@@ -177,20 +191,17 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
         <div
           className="share-overlay"
           role="dialog"
-          aria-label="Condividi la stanza"
+          aria-label={t.shareAria}
           onClick={() => setShowShare(false)}
         >
           <div className="share-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>Invita nella stanza</h3>
-            <p className="share-hint">
-              Inquadra il QR o condividi il link: chi entra è subito in stanza,
-              senza installare nulla.
-            </p>
+            <h3>{t.inviteTitle}</h3>
+            <p className="share-hint">{t.inviteHint}</p>
             <QRCode text={shareUrl} />
             <code className="share-url">{shareUrl}</code>
             <div className="share-actions">
               <button type="button" className="enter-button" onClick={copyLink}>
-                {copied ? "Copiato ✓" : "Copia link"}
+                {copied ? t.copied : t.copyLink}
               </button>
               {typeof navigator.share === "function" && (
                 <button
@@ -198,7 +209,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
                   className="share-button"
                   onClick={nativeShare}
                 >
-                  Condividi…
+                  {t.shareEllipsis}
                 </button>
               )}
             </div>
@@ -210,14 +221,14 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
                 onNewRoom();
               }}
             >
-              + Crea nuova stanza
+              {t.newRoom}
             </button>
             <button
               type="button"
               className="share-close"
               onClick={() => setShowShare(false)}
             >
-              Chiudi
+              {t.close}
             </button>
           </div>
         </div>
@@ -238,7 +249,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               </span>
               <span className="participant-name">
                 {peer.nickname}
-                {peer.id === state.self?.id && " (tu)"}
+                {peer.id === state.self?.id && ` ${t.you}`}
               </span>
               {lang && (
                 <span className="participant-lang">
@@ -268,6 +279,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
                     key={code}
                     flag={lang?.flag ?? "🌐"}
                     name={lang?.nativeName ?? code}
+                    holdLabel={t.micHold(lang?.nativeName ?? code)}
                     recording={recording}
                     disabled={!connected || otherTalking}
                     onPress={() => {
@@ -280,7 +292,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               })}
           </div>
           <p className="ptt-label" role="status">
-            Tieni premuto il microfono della lingua di chi parla
+            {t.soloPttHint}
           </p>
         </div>
       ) : (
@@ -288,6 +300,12 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           state={pttState}
           speakerName={state.channel.speakerName}
           disabled={!connected}
+          labels={{
+            free: t.pttFree,
+            talking: t.pttTalking,
+            blocked: t.pttBlocked,
+            speaking: t.pttSpeaking,
+          }}
           onPress={() => client.pttDown()}
           onRelease={() => client.pttUp()}
         />
@@ -295,8 +313,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
 
       {state.translationError && (
         <div className="translation-error" role="status">
-          Traduzione temporaneamente non disponibile (motore sovraccarico).
-          Riprova tra qualche secondo.
+          {t.translationError}
         </div>
       )}
 
@@ -310,15 +327,15 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
       {DEBUG && (
         <dl className="debug-panel" aria-label="Metriche diagnostiche">
           <div>
-            <dt>Banda ↑</dt>
+            <dt>{t.debugUp}</dt>
             <dd>{state.metrics.upKbps} kbit/s</dd>
           </div>
           <div>
-            <dt>Banda ↓</dt>
+            <dt>{t.debugDown}</dt>
             <dd>{state.metrics.downKbps} kbit/s</dd>
           </div>
           <div>
-            <dt>Latenza</dt>
+            <dt>{t.debugLatency}</dt>
             <dd>
               {state.metrics.lastLatencyMs !== null
                 ? `${state.metrics.lastLatencyMs} ms`
@@ -326,15 +343,15 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
             </dd>
           </div>
           <div>
-            <dt>Jitter buffer</dt>
+            <dt>{t.debugJitter}</dt>
             <dd>{state.metrics.jitterMs} ms</dd>
           </div>
           <div>
-            <dt>Frame ricevuti</dt>
+            <dt>{t.debugFrames}</dt>
             <dd>{state.metrics.framesReceived}</dd>
           </div>
           <div>
-            <dt>Totale ↑ / ↓</dt>
+            <dt>{t.debugTotal}</dt>
             <dd>
               {(state.metrics.upBytes / 1024).toFixed(0)} /{" "}
               {(state.metrics.downBytes / 1024).toFixed(0)} KB

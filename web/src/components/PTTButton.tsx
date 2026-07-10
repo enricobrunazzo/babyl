@@ -2,19 +2,23 @@ import { useCallback, useEffect, useRef } from "react";
 import type { PttState } from "../lib/roomClient";
 import { LockIcon, MicIcon } from "./icons";
 
+export interface PttLabels {
+  free: string;
+  talking: string;
+  blocked: string;
+  /** Costruisce l'etichetta «Nome» sta parlando… nella lingua attiva. */
+  speaking: (name: string) => string;
+}
+
 interface Props {
   state: PttState;
   speakerName: string | null;
   disabled: boolean;
+  /** Etichette localizzate secondo la lingua d'ascolto del partecipante. */
+  labels: PttLabels;
   onPress: () => void;
   onRelease: () => void;
 }
-
-const LABELS: Record<PttState, string> = {
-  free: "Tieni premuto per parlare",
-  talking: "Stai parlando…",
-  blocked: "Canale occupato",
-};
 
 /**
  * Pulsante Push-to-Talk (§2.2). Tre stati sincronizzati col server:
@@ -27,10 +31,16 @@ export function PTTButton({
   state,
   speakerName,
   disabled,
+  labels,
   onPress,
   onRelease,
 }: Props) {
   const holding = useRef(false);
+  const stateLabel: Record<PttState, string> = {
+    free: labels.free,
+    talking: labels.talking,
+    blocked: labels.blocked,
+  };
 
   const press = useCallback(() => {
     if (holding.current) return;
@@ -80,7 +90,7 @@ export function PTTButton({
         className={`ptt-button ptt-${state}`}
         disabled={blocked}
         aria-pressed={state === "talking"}
-        aria-label={LABELS[state]}
+        aria-label={stateLabel[state]}
         onPointerDown={(event) => {
           event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -96,9 +106,9 @@ export function PTTButton({
       </button>
       <p className="ptt-label" role="status">
         {state === "blocked" && speakerName ? (
-          <em>«{speakerName}» sta parlando…</em>
+          <em>{labels.speaking(speakerName)}</em>
         ) : (
-          LABELS[state]
+          stateLabel[state]
         )}
       </p>
     </div>

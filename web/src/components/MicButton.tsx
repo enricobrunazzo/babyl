@@ -4,6 +4,8 @@ import { MicIcon } from "./icons";
 interface Props {
   flag: string;
   name: string;
+  /** aria-label localizzato «tieni premuto per parlare in <lingua>». */
+  holdLabel: string;
   /** true mentre questa lingua sta trasmettendo. */
   recording: boolean;
   disabled: boolean;
@@ -18,6 +20,7 @@ interface Props {
 export function MicButton({
   flag,
   name,
+  holdLabel,
   recording,
   disabled,
   onPress,
@@ -43,7 +46,7 @@ export function MicButton({
       className={`mic-button${recording ? " recording" : ""}`}
       disabled={disabled}
       aria-pressed={recording}
-      aria-label={`Tieni premuto per parlare in ${name}`}
+      aria-label={holdLabel}
       onPointerDown={(event) => {
         event.preventDefault();
         event.currentTarget.setPointerCapture(event.pointerId);
