@@ -51,6 +51,7 @@ babyl/
 - Sistema rigorosamente **stateless**: nessun dato in localStorage, nessun account.
 - Un unico pulsante **ENTRA** con disclaimer legale e checkbox di validazione dell'età (16+ o consenso dei genitori).
 - **Dark Mode assoluta** (sfondo `#000000`) per display OLED/AMOLED.
+- **Installabile come app (PWA)**: resta "zero download" — il link è la stanza — ma può essere aggiunta alla schermata Home e aprirsi a tutto schermo, con icona dedicata, su **Android e iOS**. Un banner localizzato la propone in installazione: su Android/desktop (Chromium) col pulsante nativo, su iOS/Safari con le istruzioni manuali (Condividi → *Aggiungi a Home*). Manifest + service worker in `web/public/`; la chiusura del banner è ricordata solo in `sessionStorage` (nessun localStorage, sistema stateless).
 
 **§2.2 — Paradigma Push-to-Talk e gestione degli stati**
 - **Stato Libero (verde)**: canale disponibile, tieni premuto per trasmettere (touch o barra spaziatrice su desktop).

@@ -7,6 +7,17 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ## [Non rilasciato]
 
+### Aggiunto
+
+- **PWA installabile in schermata Home (Android e iOS).** Web app manifest,
+  service worker (installabilità + shell offline) e icone (192/512 + maskable)
+  generate dal logo. L'app resta "zero download" ma ora può essere aggiunta alla
+  Home e si apre a tutto schermo come un'app nativa. Un banner localizzato
+  invita all'installazione: su Android/desktop Chromium usa il pulsante nativo
+  (`beforeinstallprompt`), su iOS/Safari — che non espone l'evento — mostra le
+  istruzioni manuali (Condividi → Aggiungi a Home). La chiusura è ricordata solo
+  in `sessionStorage`, coerente con l'impianto stateless (nessun localStorage).
+
 ### Corretto
 
 - **Instradamento dell'audio tradotto nelle stanze a 3+ interlocutori.** Le

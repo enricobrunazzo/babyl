@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { Onboarding, type Profile } from "./components/Onboarding";
 import { Room } from "./components/Room";
+import { InstallPrompt } from "./components/InstallPrompt";
 import { newRoomId } from "./lib/roomName";
 
 /**
@@ -40,16 +41,25 @@ export default function App() {
   const activeRoom =
     profile?.mode === "solo" ? soloRoom : roomId.trim() || "piazza";
 
-  return profile ? (
-    // key: cambiare stanza rimonta il client così si entra in quella nuova.
-    <Room
-      key={activeRoom}
-      roomId={activeRoom}
-      profile={profile}
-      onLeave={() => setProfile(null)}
-      onNewRoom={() => changeRoom(newRoomId())}
-    />
-  ) : (
-    <Onboarding roomId={roomId} onRoomChange={changeRoom} onEnter={setProfile} />
+  return (
+    <>
+      {profile ? (
+        // key: cambiare stanza rimonta il client così si entra in quella nuova.
+        <Room
+          key={activeRoom}
+          roomId={activeRoom}
+          profile={profile}
+          onLeave={() => setProfile(null)}
+          onNewRoom={() => changeRoom(newRoomId())}
+        />
+      ) : (
+        <Onboarding
+          roomId={roomId}
+          onRoomChange={changeRoom}
+          onEnter={setProfile}
+        />
+      )}
+      <InstallPrompt />
+    </>
   );
 }
