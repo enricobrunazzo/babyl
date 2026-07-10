@@ -67,6 +67,7 @@ babyl/
   - `consecutive` — la traduzione parte solo al **rilascio del PTT** (turni puliti, latenza pari alla durata dell'enunciato).
   
   `TRANSLATION_TIMING` imposta il default delle nuove stanze (`release` resta un alias di `consecutive`). Al rilascio del PTT una coda di silenzio fa chiudere l'ultimo segmento nelle modalità a VAD. Sessioni riusate tra enunciati per mantenere il contesto.
+- **Instradamento per parlante (stanze a 3+)**: l'audio tradotto rientra dal motore in ritardo rispetto alla voce. Il server lo consegna in base a **chi ha pronunciato l'enunciato** (memorizzato per coppia di lingue al momento dell'invio), non a chi tiene il canale quando la coda arriva: così, anche se un altro partecipante prende il PTT nel frattempo, la traduzione (e i sottotitoli) raggiunge sempre gli ascoltatori giusti e resta attribuita al parlante corretto.
 - **Sottotitoli live**: la trascrizione della traduzione arriva in streaming a ogni ascoltatore nella propria lingua.
 - Senza `OPENAI_API_KEY` l'app funziona in modalità **voce originale** (nessuna traduzione, tutti sentono tutto): utile per sviluppo e test senza costi.
 - Il motore è pluggabile: `server/src/translation/provider.ts` definisce l'interfaccia, `openaiRealtime.ts` è l'implementazione attiva.
