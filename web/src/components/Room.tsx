@@ -3,6 +3,7 @@ import { useRoom } from "../hooks/useRoom";
 import { languageByCode, LANGUAGES } from "../lib/languages";
 import type { TranslationTiming } from "../../../shared/protocol";
 import type { Profile } from "./Onboarding";
+import { MicButton } from "./MicButton";
 import { PTTButton } from "./PTTButton";
 import { QRCode } from "./QRCode";
 
@@ -222,40 +223,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
         </div>
       )}
 
-      {isSolo && state.solo ? (
-        <div className="solo-control">
-          <p className="solo-label">Chi parla ora</p>
-          <div className="solo-langs">
-            {[profile.lang, profile.langB]
-              .filter((c): c is string => Boolean(c))
-              .map((code) => {
-                const lang = languageByCode(code);
-                const active = state.solo?.source === code;
-                return (
-                  <button
-                    key={code}
-                    type="button"
-                    className={`solo-lang${active ? " active" : ""}`}
-                    aria-pressed={active}
-                    disabled={pttState === "talking"}
-                    onClick={() => client.setSoloSource(code)}
-                  >
-                    <span className="solo-lang-flag" aria-hidden="true">
-                      {lang?.flag ?? "🌐"}
-                    </span>
-                    <span className="solo-lang-name">
-                      {lang?.nativeName ?? code}
-                    </span>
-                  </button>
-                );
-              })}
-          </div>
-          <small className="field-help">
-            Tocca la lingua di chi sta per parlare; la traduzione esce nell'altra
-            al rilascio del pulsante.
-          </small>
-        </div>
-      ) : (
+      {!isSolo && (
       <ul className="participants">
         {participants.map((peer) => {
           const lang = languageByCode(peer.lang);
@@ -334,13 +302,46 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
         </dl>
       )}
 
-      <PTTButton
-        state={pttState}
-        speakerName={state.channel.speakerName}
-        disabled={!connected}
-        onPress={() => client.pttDown()}
-        onRelease={() => client.pttUp()}
-      />
+      {isSolo && state.solo ? (
+        <div className="solo-mics">
+          <div className="solo-mics-row">
+            {[profile.lang, profile.langB]
+              .filter((c): c is string => Boolean(c))
+              .map((code) => {
+                const lang = languageByCode(code);
+                const recording =
+                  pttState === "talking" && state.solo?.source === code;
+                const otherTalking =
+                  pttState === "talking" && state.solo?.source !== code;
+                return (
+                  <MicButton
+                    key={code}
+                    flag={lang?.flag ?? "🌐"}
+                    name={lang?.nativeName ?? code}
+                    recording={recording}
+                    disabled={!connected || otherTalking}
+                    onPress={() => {
+                      client.setSoloSource(code);
+                      client.pttDown();
+                    }}
+                    onRelease={() => client.pttUp()}
+                  />
+                );
+              })}
+          </div>
+          <p className="ptt-label" role="status">
+            Tieni premuto il microfono della lingua di chi parla
+          </p>
+        </div>
+      ) : (
+        <PTTButton
+          state={pttState}
+          speakerName={state.channel.speakerName}
+          disabled={!connected}
+          onPress={() => client.pttDown()}
+          onRelease={() => client.pttUp()}
+        />
+      )}
     </main>
   );
 }

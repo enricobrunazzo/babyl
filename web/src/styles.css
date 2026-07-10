@@ -394,65 +394,69 @@ main {
   color: var(--talking);
 }
 
-.solo-control {
+.solo-mics {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 20px;
+  gap: 16px;
+  padding-bottom: 24px;
+}
+
+.solo-mics-row {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+
+.mic-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  text-align: center;
-}
-
-.solo-label {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.solo-langs {
-  display: flex;
-  gap: 12px;
-  width: 100%;
-}
-
-.solo-lang {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 16px 10px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--bg);
-  color: var(--text-dim);
-  font-size: 1rem;
+  color: var(--text);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.15s;
 }
 
-.solo-lang-flag {
-  font-size: 1.8rem;
+.mic-button-flag {
+  font-size: 1.9rem;
   line-height: 1;
 }
 
-.solo-lang-name {
-  font-size: 0.95rem;
+.mic-button-icon {
+  color: var(--text-dim);
 }
 
-.solo-lang.active {
-  border-color: var(--free);
-  background: rgba(34, 197, 94, 0.12);
-  color: var(--text);
-  font-weight: 600;
+.mic-button-name {
+  font-size: 0.9rem;
+  color: var(--text-dim);
 }
 
-.solo-lang:disabled {
-  opacity: 0.5;
+.mic-button.recording {
+  background: var(--talking);
+  border-color: var(--talking);
+  box-shadow: 0 0 56px rgba(239, 68, 68, 0.5);
+  transform: scale(1.06);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.mic-button.recording .mic-button-icon,
+.mic-button.recording .mic-button-name {
+  color: #fff;
+}
+
+.mic-button:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -593,6 +597,25 @@ main {
 
 .ptt-button:disabled {
   opacity: 0.8;
+}
+
+.ptt-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.ptt-free .ptt-icon {
+  color: #04180d; /* microfono scuro su verde, in stile Material */
+}
+
+.ptt-talking .ptt-icon {
+  color: #ffffff;
+}
+
+.ptt-blocked .ptt-icon {
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .ptt-label {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { PttState } from "../lib/roomClient";
+import { LockIcon, MicIcon } from "./icons";
 
 interface Props {
   state: PttState;
@@ -90,7 +91,7 @@ export function PTTButton({
         onContextMenu={(event) => event.preventDefault()}
       >
         <span className="ptt-icon" aria-hidden="true">
-          {state === "talking" ? "🔴" : state === "blocked" ? "🔒" : "🎙️"}
+          {state === "blocked" ? <LockIcon size={64} /> : <MicIcon size={64} />}
         </span>
       </button>
       <p className="ptt-label" role="status">
