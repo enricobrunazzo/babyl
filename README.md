@@ -78,6 +78,7 @@ babyl/
 **Resilienza**
 - Riconnessione automatica del client con backoff esponenziale (rete mobile instabile).
 - Heartbeat WebSocket lato server: i client spariti senza chiudere la connessione (telefono bloccato, cambio rete) vengono terminati, liberando presenza ed eventuale lock PTT.
+- Apertura della sessione di traduzione con **retry a backoff esponenziale** sui fallimenti transitori del motore (OpenAI sovraccarico → `503`, rate limit → `429`, errori di rete); fallisce subito sugli errori non ritentabili (`401/403/404`: chiave/permessi/modello). Se dopo i tentativi la traduzione resta non disponibile, il client mostra un avviso **non fatale** ("traduzione temporaneamente non disponibile") senza cadere dalla stanza.
 
 ## Configurazione del server
 

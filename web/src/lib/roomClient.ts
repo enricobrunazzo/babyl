@@ -53,6 +53,8 @@ export interface RoomState {
   metrics: ClientMetrics;
   /** Direzione corrente in modalità single-device, o null (modalità stanza). */
   solo: { source: string; target: string } | null;
+  /** Traduzione temporaneamente non disponibile (motore sovraccarico). */
+  translationError: boolean;
   error: "mic-denied" | "connection" | null;
 }
 
@@ -132,6 +134,7 @@ export class RoomClient {
       framesReceived: 0,
     },
     solo: null,
+    translationError: false,
     error: null,
   };
 
@@ -455,6 +458,10 @@ export class RoomClient {
         });
         break;
       }
+      case "translation-error": {
+        this.setState({ translationError: true });
+        break;
+      }
       case "error": {
         this.setState({ status: "error", error: "connection" });
         break;
@@ -479,6 +486,8 @@ export class RoomClient {
     this.setState({
       channel,
       subtitle: startingUtterance ? null : this.state.subtitle,
+      // Nuovo enunciato = nuovo tentativo: azzera l'avviso di traduzione ko.
+      translationError: startingUtterance ? false : this.state.translationError,
     });
     this.setTransmitting(channel.speakerId === this.state.self?.id);
   }

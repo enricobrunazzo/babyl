@@ -334,6 +334,42 @@ test("single-device: traduce source→target e rimanda l'audio al mittente", asy
   assert.ok(pair && pair.inMs > 0 && pair.outMs > 0);
 });
 
+const failingProvider = (): TranslationProvider => ({
+  name: "boom",
+  createSession: () =>
+    Promise.reject(new Error("Unexpected server response: 503")),
+});
+
+test("traduzione ko: avvisa gli ascoltatori con translation-error", async () => {
+  const room = new Room("ko", failingProvider());
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+
+  // b (de) attende la traduzione: viene avvisato che non è disponibile.
+  assert.equal(ofType(b, "translation-error").length, 1);
+  // a (parlante, stessa lingua): nessun avviso.
+  assert.equal(ofType(a, "translation-error").length, 0);
+});
+
+test("single-device: traduzione ko avvisa il dispositivo stesso", async () => {
+  const room = new Room("solo-ko", failingProvider());
+  const a = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.setSolo("a", "it", "en");
+
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+
+  assert.equal(ofType(a, "translation-error").length, 1);
+});
+
 test("metrics: conta byte e ms d'inferenza, i totali sopravvivono alla stanza", async () => {
   const provider = new FakeProvider();
   const manager = new RoomManager(provider);

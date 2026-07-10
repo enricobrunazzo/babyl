@@ -290,6 +290,13 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
         </div>
       )}
 
+      {state.translationError && (
+        <div className="translation-error" role="status">
+          Traduzione temporaneamente non disponibile (motore sovraccarico).
+          Riprova tra qualche secondo.
+        </div>
+      )}
+
       {DEBUG && (
         <dl className="debug-panel" aria-label="Metriche diagnostiche">
           <div>

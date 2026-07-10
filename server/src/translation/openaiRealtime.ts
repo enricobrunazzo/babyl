@@ -37,6 +37,21 @@ function turnConfigFor(timing: TranslationTiming): TurnConfig {
   }
 }
 
+/**
+ * Un fallimento di handshake è ritentabile se è transitorio: 5xx (incluso il
+ * 503 di sovraccarico OpenAI), 429 (rate limit) o un errore di rete. I 4xx di
+ * autenticazione/permessi/modello (401/403/404) no: non cambiano riprovando.
+ */
+function isRetryable(error: Error): boolean {
+  const match = error.message.match(/Unexpected server response: (\d+)/);
+  if (match) {
+    const code = Number(match[1]);
+    return code >= 500 || code === 429;
+  }
+  // Nessun codice HTTP = errore di rete (ECONNRESET, ETIMEDOUT, …): ritentabile.
+  return true;
+}
+
 export class OpenAIRealtimeProvider implements TranslationProvider {
   readonly name = "openai-realtime";
 
@@ -46,6 +61,44 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     private voice = process.env.OPENAI_REALTIME_VOICE ?? "marin",
   ) {}
 
+  /**
+   * Apre il WebSocket Realtime ritentando i fallimenti transitori (OpenAI
+   * sovraccarico → 503, rate limit → 429, errori di rete) con backoff
+   * esponenziale. Fallisce subito su errori non ritentabili (401/403/404):
+   * chiave, permessi o modello sbagliati non migliorano riprovando.
+   */
+  private async openSocket(): Promise<WebSocket> {
+    const url = `${REALTIME_URL}?model=${encodeURIComponent(this.model)}`;
+    const maxAttempts = 4;
+    let lastError: Error = new Error("apertura realtime fallita");
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      if (attempt > 0) {
+        const delay = Math.min(500 * 2 ** (attempt - 1), 4000);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      const ws = new WebSocket(url, {
+        headers: { Authorization: `Bearer ${this.apiKey}` },
+      });
+      try {
+        await new Promise<void>((resolve, reject) => {
+          ws.once("open", () => resolve());
+          ws.once("error", (error) => reject(error));
+        });
+        return ws;
+      } catch (error) {
+        lastError = error as Error;
+        try {
+          ws.terminate();
+        } catch {
+          // socket già chiuso
+        }
+        if (!isRetryable(lastError)) break;
+      }
+    }
+    throw lastError;
+  }
+
   async createSession(
     sourceLang: string,
     targetLang: string,
@@ -54,14 +107,6 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
   ): Promise<TranslationSession> {
     const turn = turnConfigFor(timing);
     const useVad = turn.kind === "vad";
-    const ws = new WebSocket(
-      `${REALTIME_URL}?model=${encodeURIComponent(this.model)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-      },
-    );
 
     const instructions =
       `You are a professional simultaneous interpreter. ` +
@@ -73,10 +118,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       `Do not summarize. ` +
       `Preserve tone, meaning, and intent.`;
 
-    await new Promise<void>((resolve, reject) => {
-      ws.once("open", () => resolve());
-      ws.once("error", (error) => reject(error));
-    });
+    const ws = await this.openSocket();
 
     const send = (payload: Record<string, unknown>) => {
       if (ws.readyState === WebSocket.OPEN) {

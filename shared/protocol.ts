@@ -85,4 +85,9 @@ export type ServerMessage =
   | { type: "ptt-denied"; reason: "busy" }
   /** Sottotitoli live nella lingua del destinatario. */
   | { type: "transcript"; speakerId: string; text: string; final: boolean }
+  /**
+   * Traduzione temporaneamente non disponibile (es. motore sovraccarico):
+   * segnalazione non fatale, la connessione alla stanza resta attiva.
+   */
+  | { type: "translation-error" }
   | { type: "error"; message: string };

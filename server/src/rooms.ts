@@ -235,6 +235,15 @@ export class Room {
     }
   }
 
+  /** Avvisa gli ascoltatori di una lingua che la traduzione non è disponibile. */
+  private notifyTranslationError(targetLang: string): void {
+    for (const peer of this.peers.values()) {
+      if (peer.info.lang === targetLang) {
+        this.send(peer.info.id, { type: "translation-error" });
+      }
+    }
+  }
+
   /** Lingue di destinazione: quelle degli ascoltatori diverse dal parlante. */
   private listenerLangs(speakerLang: string): Set<string> {
     const langs = new Set<string>();
@@ -304,6 +313,7 @@ export class Room {
     session.catch((error: Error) => {
       console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);
       this.sessions.delete(key);
+      this.notifyTranslationError(targetLang);
     });
     return session;
   }
@@ -352,6 +362,7 @@ export class Room {
     session.catch((error: Error) => {
       console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);
       this.sessions.delete(key);
+      this.send(peerId, { type: "translation-error" });
     });
     return session;
   }
