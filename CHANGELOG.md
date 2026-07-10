@@ -17,6 +17,9 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
   (`beforeinstallprompt`), su iOS/Safari — che non espone l'evento — mostra le
   istruzioni manuali (Condividi → Aggiungi a Home). La chiusura è ricordata solo
   in `sessionStorage`, coerente con l'impianto stateless (nessun localStorage).
+  Coperto da un test end-to-end dedicato (`tests/pwa.mjs`, in CI): manifest,
+  icone, meta iOS, registrazione del service worker e banner su entrambi i
+  percorsi (Android/desktop e iOS/Safari).
 
 ### Corretto
 

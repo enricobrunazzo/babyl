@@ -13,9 +13,10 @@
     "dev:web": "npm run dev --workspace=web",
     "build": "npm run build --workspace=server && npm run build --workspace=web",
     "typecheck": "npm run typecheck --workspaces",
-    "test": "npm run test:unit && npm run test:e2e",
+    "test": "npm run test:unit && npm run test:e2e && npm run test:e2e:pwa",
     "test:unit": "npm run test --workspace=server",
-    "test:e2e": "node tests/e2e.mjs"
+    "test:e2e": "node tests/e2e.mjs",
+    "test:e2e:pwa": "node tests/pwa.mjs"
   },
   "devDependencies": {
     "playwright": "^1.49.1"

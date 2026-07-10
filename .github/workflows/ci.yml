@@ -33,3 +33,6 @@ jobs:
 
       - name: Test end-to-end (due utenti, half-duplex, riconnessione)
         run: npm run test:e2e
+
+      - name: Test end-to-end PWA (installabilità Android/iOS)
+        run: npm run test:e2e:pwa
