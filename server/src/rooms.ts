@@ -16,12 +16,33 @@ interface Peer {
   info: PeerInfo;
   socket: WebSocket;
   /**
+   * Chiave di ripresa dichiarata dal client al join (segreta: mai broadcast).
+   * Alla riconnessione un join con la stessa chiave riprende questo peer —
+   * stessa identità nel roster, mano alzata e parola concessa conservate —
+   * invece di crearne uno nuovo accanto allo zombie.
+   */
+  resumeKey?: string;
+  /**
    * Modalità single-device: direzione di traduzione dell'enunciato corrente.
    * Se presente, l'audio del peer viene tradotto source→target e rimandato al
    * peer stesso invece che instradato agli altri ascoltatori della stanza.
    */
   solo?: { source: string; target: string };
 }
+
+/**
+ * Arretrato massimo tollerato sul socket di un ascoltatore prima di scartare
+ * i frame audio (~10 s di PCM16 24 kHz). L'audio è live: un client su rete
+ * lenta deve perdere i frame in ritardo, non far crescere la memoria del
+ * server all'infinito.
+ */
+const MAX_BUFFERED_BYTES = 512 * 1024;
+
+/** Sessione di traduzione inutilizzata da così a lungo → chiusa (riaperta al
+ *  prossimo PTT). Evita connessioni pendenti verso il motore nelle stanze
+ *  lunghe con ore di silenzio, dove la sessione scadrebbe comunque lato OpenAI. */
+const SESSION_IDLE_MS = 5 * 60_000;
+const IDLE_SWEEP_MS = 60_000;
 
 /** Millisecondi di audio PCM16 24 kHz rappresentati da `bytes` byte. */
 function pcmDurationMs(bytes: number): number {
@@ -70,14 +91,9 @@ export class Room {
   private floor: string | null = null;
   /** Sessioni di traduzione attive, per coppia di lingue. */
   private sessions = new Map<string, Promise<TranslationSession>>();
-  /**
-   * Parlante il cui enunciato ciascuna sessione sta traducendo, per chiave di
-   * sessione. L'audio tradotto torna dal motore in ritardo e va instradato in
-   * base a chi l'ha pronunciato, non a chi tiene il canale in quel momento:
-   * altrimenti in una conversazione a 3+ la coda di traduzione di un parlante
-   * verrebbe esclusa proprio dall'ascoltatore che ha appena preso il PTT.
-   */
-  private sessionSpeaker = new Map<string, string>();
+  /** Ultimo uso di ciascuna sessione, per lo sweep di inattività. */
+  private sessionLastUsed = new Map<string, number>();
+  private idleSweep: ReturnType<typeof setInterval>;
 
   // Contatori diagnostici (esposti da GET /metrics).
   private mBytesIn = 0;
@@ -90,7 +106,26 @@ export class Room {
     readonly id: string,
     private provider: TranslationProvider | null,
     private timing: TranslationTiming = "streaming",
-  ) {}
+  ) {
+    this.idleSweep = setInterval(() => this.closeIdleSessions(), IDLE_SWEEP_MS);
+    // Non tenere vivo il processo per questo timer (test, shutdown).
+    this.idleSweep.unref?.();
+  }
+
+  /**
+   * Chiude le sessioni di traduzione inutilizzate da più di SESSION_IDLE_MS:
+   * meno connessioni pendenti verso il motore e nessuna sorpresa da sessione
+   * scaduta lato OpenAI. La prossima pressione PTT le ricrea.
+   */
+  closeIdleSessions(now = Date.now()): void {
+    for (const [key, session] of this.sessions) {
+      const lastUsed = this.sessionLastUsed.get(key) ?? now;
+      if (now - lastUsed < SESSION_IDLE_MS) continue;
+      void session.then((s) => s.close()).catch(() => {});
+      this.sessions.delete(key);
+      this.sessionLastUsed.delete(key);
+    }
+  }
 
   get translation(): TranslationInfo {
     return {
@@ -112,7 +147,7 @@ export class Room {
       void session.then((s) => s.close()).catch(() => {});
     }
     this.sessions.clear();
-    this.sessionSpeaker.clear();
+    this.sessionLastUsed.clear();
     this.broadcast({ type: "timing", timing });
   }
 
@@ -154,16 +189,45 @@ export class Room {
     };
   }
 
-  join(info: PeerInfo, socket: WebSocket, mode: RoomMode = "conversation"): void {
+  /**
+   * Ingresso in stanza. Se `resumeKey` corrisponde a un peer già presente è
+   * una riconnessione: il peer riprende la propria identità (stesso id nel
+   * roster, mano alzata e parola concessa conservate) e il vecchio socket —
+   * uno zombie che il heartbeat non ha ancora terminato — viene sostituito.
+   * Ritorna l'id effettivo del peer (quello ripreso, se c'è stata ripresa).
+   */
+  join(
+    info: PeerInfo,
+    socket: WebSocket,
+    mode: RoomMode = "conversation",
+    resumeKey?: string,
+  ): string {
     // La modalità evento è sticky: il primo ingresso che la chiede la fissa.
     if (mode === "event") this.mode = "event";
-    this.peers.set(info.id, { info, socket });
-    this.broadcast({ type: "peer-joined", peer: info }, info.id);
-    this.send(info.id, {
+
+    const resumed = resumeKey
+      ? [...this.peers.values()].find((p) => p.resumeKey === resumeKey)
+      : undefined;
+    if (resumed) {
+      try {
+        resumed.socket.terminate?.();
+      } catch {
+        // Zombie già chiuso.
+      }
+      // L'info esistente resta (nickname e lingua possono essere cambiati a
+      // caldo in stanza: non vanno riportati ai valori dell'onboarding).
+      resumed.socket = socket;
+    } else {
+      this.peers.set(info.id, { info, socket, resumeKey });
+      this.broadcast({ type: "peer-joined", peer: info }, info.id);
+    }
+
+    const self = resumed?.info ?? info;
+    this.send(self.id, {
       type: "welcome",
-      self: info,
+      self,
       peers: [...this.peers.values()]
-        .filter((p) => p.info.id !== info.id)
+        .filter((p) => p.info.id !== self.id)
         .map((p) => p.info),
       channel: this.channel,
       translation: this.translation,
@@ -171,10 +235,26 @@ export class Room {
       hands: [...this.hands],
       floor: this.floor,
     });
+    return self.id;
   }
 
-  leave(peerId: string): void {
-    if (!this.peers.delete(peerId)) return;
+  /**
+   * Uscita dalla stanza. `socket`, se fornito, fa da guardia: la chiusura di
+   * un vecchio socket sostituito da una riconnessione (resumeKey) non deve
+   * buttare fuori il peer che nel frattempo è rientrato.
+   */
+  leave(peerId: string, socket?: WebSocket): void {
+    const peer = this.peers.get(peerId);
+    if (!peer || (socket && peer.socket !== socket)) return;
+    this.peers.delete(peerId);
+    // Le sessioni single-device del peer non servono più a nessuno.
+    const soloPrefix = `solo:${peerId}:`;
+    for (const [key, session] of this.sessions) {
+      if (!key.startsWith(soloPrefix)) continue;
+      void session.then((s) => s.close()).catch(() => {});
+      this.sessions.delete(key);
+      this.sessionLastUsed.delete(key);
+    }
     if (this.speakerId === peerId) {
       this.speakerId = null;
       this.endLock();
@@ -319,6 +399,7 @@ export class Room {
     if (speaker.solo && this.provider) {
       const { source, target } = speaker.solo;
       this.pairStat(`${source}->${target}`).inMs += pcmDurationMs(data.length);
+      this.sessionLastUsed.set(`solo:${peerId}:${source}->${target}`, Date.now());
       void this.soloSessionFor(peerId, source, target)
         .then((session) => session.appendAudio(encoded()))
         .catch(() => {});
@@ -330,7 +411,6 @@ export class Room {
       // Voce originale a chi parla la stessa lingua (o a tutti senza provider).
       if (!this.provider || peer.info.lang === speaker.info.lang) {
         this.sendBinary(peer.info.id, data);
-        this.mBytesOut += data.length;
       }
     }
 
@@ -339,12 +419,15 @@ export class Room {
     for (const lang of this.listenerLangs(speaker.info.lang)) {
       const key = `${speaker.info.lang}->${lang}`;
       this.pairStat(key).inMs += durationMs;
-      // Chi parla ora possiede l'enunciato che questa sessione tradurrà: lo
-      // fissa così la coda tradotta verrà instradata a lui anche se nel
-      // frattempo un altro peer prende il canale.
-      this.sessionSpeaker.set(key, peerId);
+      this.sessionLastUsed.set(key, Date.now());
+      // Dichiara chi pronuncia l'audio che segue: il provider attribuisce i
+      // segmenti per parlante (FIFO), così la coda tradotta resta instradata
+      // e sottotitolata correttamente anche se il canale passa di mano.
       void this.sessionFor(speaker.info.lang, lang)
-        .then((session) => session.appendAudio(encoded()))
+        .then((session) => {
+          session.setSpeaker(peerId);
+          session.appendAudio(encoded());
+        })
         .catch(() => {});
     }
   }
@@ -394,20 +477,17 @@ export class Room {
     if (session) return session;
 
     session = this.provider!.createSession(sourceLang, targetLang, {
-      onAudio: (chunk) => {
-        const speakerId = this.sessionSpeaker.get(key);
+      onAudio: (chunk, speakerId) => {
         if (!speakerId) return;
         const audio = Buffer.from(chunk, "base64");
         this.pairStat(key).outMs += pcmDurationMs(audio.length);
         for (const peer of this.peers.values()) {
           if (peer.info.id !== speakerId && peer.info.lang === targetLang) {
             this.sendBinary(peer.info.id, audio);
-            this.mBytesOut += audio.length;
           }
         }
       },
-      onTranscript: (text, final) => {
-        const speakerId = this.sessionSpeaker.get(key);
+      onTranscript: (text, final, speakerId) => {
         if (!speakerId) return;
         for (const peer of this.peers.values()) {
           if (peer.info.id !== speakerId && peer.info.lang === targetLang) {
@@ -428,14 +508,14 @@ export class Room {
         // Sessione compromessa: la prossima pressione PTT ne creerà una nuova.
         this.sessions.get(key)?.then((s) => s.close()).catch(() => {});
         this.sessions.delete(key);
-        this.sessionSpeaker.delete(key);
+        this.sessionLastUsed.delete(key);
       },
     }, this.timing);
     this.sessions.set(key, session);
     session.catch((error: Error) => {
       console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);
       this.sessions.delete(key);
-      this.sessionSpeaker.delete(key);
+      this.sessionLastUsed.delete(key);
       this.notifyTranslationError(targetLang);
     });
     return session;
@@ -465,7 +545,6 @@ export class Room {
           this.pairStat(`${source}->${target}`).outMs +=
             pcmDurationMs(audio.length);
           this.sendBinary(peerId, audio);
-          this.mBytesOut += audio.length;
         },
         onTranscript: (text, final) => {
           this.send(peerId, { type: "transcript", speakerId: peerId, text, final });
@@ -477,6 +556,7 @@ export class Room {
           );
           this.sessions.get(key)?.then((s) => s.close()).catch(() => {});
           this.sessions.delete(key);
+          this.sessionLastUsed.delete(key);
         },
       },
       "consecutive",
@@ -485,16 +565,19 @@ export class Room {
     session.catch((error: Error) => {
       console.error(`[babyl] apertura sessione ${key} fallita:`, error.message);
       this.sessions.delete(key);
+      this.sessionLastUsed.delete(key);
       this.send(peerId, { type: "translation-error" });
     });
     return session;
   }
 
   destroy(): void {
+    clearInterval(this.idleSweep);
     for (const session of this.sessions.values()) {
       void session.then((s) => s.close()).catch(() => {});
     }
     this.sessions.clear();
+    this.sessionLastUsed.clear();
   }
 
   send(peerId: string, message: ServerMessage): void {
@@ -504,12 +587,18 @@ export class Room {
     }
   }
 
-  /** Invia un frame audio binario (PCM16) a un peer. */
+  /**
+   * Invia un frame audio binario (PCM16) a un peer. Se il socket ha troppo
+   * arretrato (rete lenta), il frame viene scartato: l'audio è live e in
+   * ritardo non servirebbe più, mentre accumularlo farebbe crescere la
+   * memoria del server senza limite. Conta qui i byte davvero inviati.
+   */
   sendBinary(peerId: string, data: Buffer): void {
     const peer = this.peers.get(peerId);
-    if (peer && peer.socket.readyState === peer.socket.OPEN) {
-      peer.socket.send(data);
-    }
+    if (!peer || peer.socket.readyState !== peer.socket.OPEN) return;
+    if (peer.socket.bufferedAmount > MAX_BUFFERED_BYTES) return;
+    peer.socket.send(data);
+    this.mBytesOut += data.length;
   }
 
   broadcast(message: ServerMessage, exceptId?: string): void {
@@ -572,10 +661,10 @@ export class RoomManager {
   }
 
   /** Rimuove il peer e distrugge la stanza se vuota (sistema stateless). */
-  leave(roomId: string, peerId: string): void {
+  leave(roomId: string, peerId: string, socket?: WebSocket): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
-    room.leave(peerId);
+    room.leave(peerId, socket);
     if (room.peers.size === 0) {
       this.fold(room.stats);
       room.destroy();

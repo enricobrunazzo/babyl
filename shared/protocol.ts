@@ -81,6 +81,14 @@ export type ClientMessage =
       mode?: RoomMode;
       /** Ruolo richiesto (default "speaker"). In evento il pubblico usa "audience". */
       role?: PeerRole;
+      /**
+       * Chiave di ripresa, segreta e per-sessione, generata dal client e mai
+       * ribroadcastata. Alla riconnessione (socket morto in background, cambio
+       * rete) permette al server di riconoscere il peer e fargli riprendere la
+       * stessa identità: stesso id nel roster e, in evento, mano alzata e
+       * parola concessa conservate.
+       */
+      resumeKey?: string;
     }
   /**
    * Push-to-Talk. "cancel" rilascia il canale scartando l'audio dell'enunciato

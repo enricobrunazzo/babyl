@@ -21,6 +21,8 @@ interface FakeSocket {
   binary: Buffer[];
   readyState: number;
   OPEN: number;
+  /** Arretrato simulato sul socket (backpressure). */
+  bufferedAmount: number;
   send(payload: string | Buffer): void;
 }
 
@@ -30,6 +32,7 @@ function fakeSocket(): FakeSocket {
     binary: [],
     readyState: 1,
     OPEN: 1,
+    bufferedAmount: 0,
     send(payload: string | Buffer) {
       if (typeof payload === "string") {
         socket.sent.push(JSON.parse(payload) as ServerMessage);
@@ -68,7 +71,8 @@ function lastOfType<T extends ServerMessage["type"]>(
 
 /**
  * Provider finto: "traduce" trasformando l'audio in maiuscolo e registra
- * append/commit per verificare l'instradamento.
+ * append/commit per verificare l'instradamento. Come quello vero, attribuisce
+ * l'audio tradotto al parlante dichiarato via setSpeaker.
  */
 class FakeProvider implements TranslationProvider {
   readonly name = "fake";
@@ -76,6 +80,7 @@ class FakeProvider implements TranslationProvider {
     key: string;
     timing: TranslationTiming;
     appended: string[];
+    speaker: string;
     commits: number;
     discards: number;
     cancels: number;
@@ -93,6 +98,7 @@ class FakeProvider implements TranslationProvider {
       key: `${sourceLang}->${targetLang}`,
       timing,
       appended: [] as string[],
+      speaker: "",
       commits: 0,
       discards: 0,
       cancels: 0,
@@ -103,9 +109,12 @@ class FakeProvider implements TranslationProvider {
     return {
       sourceLang,
       targetLang,
+      setSpeaker(speakerId) {
+        record.speaker = speakerId;
+      },
       appendAudio(data) {
         record.appended.push(data);
-        callbacks.onAudio(data.toUpperCase());
+        callbacks.onAudio(data.toUpperCase(), record.speaker);
       },
       commit() {
         record.commits += 1;
@@ -236,7 +245,7 @@ test("sottotitoli: la trascrizione arriva solo agli ascoltatori della lingua", a
   room.handleAudio("a", Buffer.from("ciao"));
   await tick();
 
-  provider.sessions[0].callbacks.onTranscript("Hallo", true);
+  provider.sessions[0].callbacks.onTranscript("Hallo", true, "a");
   const transcript = lastOfType(b, "transcript");
   assert.equal(transcript?.text, "Hallo");
   assert.equal(transcript?.final, true);
@@ -266,8 +275,9 @@ test("conversazione a 3: la coda tradotta di un enunciato va ai suoi ascoltatori
   // b prende il canale prima che la coda di traduzione di a rientri dal motore.
   room.requestLock("b");
 
-  // Ora arriva la coda tradotta dell'enunciato di a (callback asincrona).
-  provider.sessions[0].callbacks.onAudio("coda");
+  // Ora arriva la coda tradotta dell'enunciato di a: il provider la
+  // attribuisce ad a (FIFO dei segmenti), non a chi tiene il canale.
+  provider.sessions[0].callbacks.onAudio("coda", "a");
 
   // Entrambi gli ascoltatori tedeschi la ricevono: b non deve essere escluso
   // solo perché nel frattempo tiene il PTT.
@@ -275,7 +285,7 @@ test("conversazione a 3: la coda tradotta di un enunciato va ai suoi ascoltatori
   assert.equal(c.binary.length, cBefore + 1);
 
   // Il sottotitolo resta attribuito ad a (chi ha pronunciato l'enunciato).
-  provider.sessions[0].callbacks.onTranscript("Hallo", true);
+  provider.sessions[0].callbacks.onTranscript("Hallo", true, "a");
   assert.equal(lastOfType(b, "transcript")?.speakerId, "a");
   assert.equal(lastOfType(c, "transcript")?.speakerId, "a");
 });
@@ -565,6 +575,132 @@ test("evento: solo un relatore può concedere la parola", () => {
   assert.equal(lastOfType(a, "floor")?.floor, "a");
   room.leave("a");
   assert.equal(lastOfType(b, "floor")?.floor, null);
+});
+
+test("riconnessione: un join con lo stesso resumeKey riprende identità e parola", () => {
+  const room = new Room("resume", null);
+  const relatore = fakeSocket();
+  const vecchio = fakeSocket();
+  room.join(peer("r", "it", "Relatore", "speaker"), relatore as unknown as WebSocket, "event");
+  room.join(
+    peer("s", "de", "Spettatore", "audience"),
+    vecchio as unknown as WebSocket,
+    "event",
+    "chiave-segreta",
+  );
+  room.raiseHand("s", true);
+  room.grantFloor("r", "s");
+
+  // Il socket muore in background (zombie, nessun close): il client rientra
+  // con un nuovo socket, un nuovo id provvisorio e la stessa chiave.
+  const nuovo = fakeSocket();
+  const id = room.join(
+    peer("id-provvisorio", "de", "Spettatore", "audience"),
+    nuovo as unknown as WebSocket,
+    "event",
+    "chiave-segreta",
+  );
+
+  // Stessa identità di prima: id ripreso, parola concessa conservata.
+  assert.equal(id, "s");
+  const welcome = lastOfType(nuovo, "welcome");
+  assert.equal(welcome?.self.id, "s");
+  assert.equal(welcome?.floor, "s");
+  // Gli altri non vedono un doppione entrare.
+  assert.equal(ofType(relatore, "peer-joined").length, 1);
+  assert.equal(room.peers.size, 2);
+
+  // La chiusura tardiva del vecchio socket non butta fuori il peer rientrato.
+  room.leave("s", vecchio as unknown as WebSocket);
+  assert.equal(room.peers.size, 2);
+
+  // La parola conservata permette subito di trasmettere.
+  room.requestLock("s");
+  assert.equal(room.channel.speakerId, "s");
+});
+
+test("leave: chiude le sessioni single-device del peer, non quelle condivise", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("orfane", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.setSolo("a", "it", "en");
+
+  // a apre la sua sessione single-device...
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+  room.releaseLock("a");
+
+  // ...e b una sessione condivisa di stanza.
+  room.requestLock("b");
+  room.handleAudio("b", Buffer.from("hallo"));
+  await tick();
+
+  const solo = provider.sessions.find((s) => s.key === "it->en");
+  const condivisa = provider.sessions.find((s) => s.key === "de->it");
+  assert.ok(solo && condivisa);
+
+  room.leave("a");
+  await tick();
+  assert.equal(solo!.closed, true);
+  assert.equal(condivisa!.closed, false);
+});
+
+test("backpressure: frame scartati verso i socket con troppo arretrato", () => {
+  const room = new Room("lenta", null);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  const c = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "it"), b as unknown as WebSocket);
+  room.join(peer("c", "it"), c as unknown as WebSocket);
+
+  // b è su una rete lenta: il suo socket ha accumulato troppo arretrato.
+  b.bufferedAmount = 600 * 1024;
+
+  room.requestLock("a");
+  const chunk = Buffer.from("chunk");
+  room.handleAudio("a", chunk);
+
+  // Il frame per b viene scartato (audio live, in ritardo non serve più);
+  // c lo riceve normalmente e i byte contati sono solo quelli inviati.
+  assert.equal(b.binary.length, 0);
+  assert.deepEqual(c.binary, [chunk]);
+  assert.equal(room.stats.bytesOut, chunk.length);
+});
+
+test("sessioni inattive: chiuse dallo sweep, ricreate alla pressione successiva", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("pigra", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+  room.releaseLock("a");
+  assert.equal(provider.sessions.length, 1);
+
+  // Sotto la soglia di inattività la sessione resta aperta...
+  room.closeIdleSessions(Date.now() + 60_000);
+  await tick();
+  assert.equal(provider.sessions[0].closed, false);
+
+  // ...oltre la soglia viene chiusa (niente connessioni pendenti al motore).
+  room.closeIdleSessions(Date.now() + 6 * 60_000);
+  await tick();
+  assert.equal(provider.sessions[0].closed, true);
+
+  // La pressione PTT successiva la ricrea in modo trasparente.
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ancora"));
+  await tick();
+  assert.equal(provider.sessions.length, 2);
 });
 
 test("metrics: conta byte e ms d'inferenza, i totali sopravvivono alla stanza", async () => {

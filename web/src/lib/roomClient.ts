@@ -113,6 +113,16 @@ export class RoomClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Spegne il feedback "PTT negato" dopo qualche secondo. */
   private pttDeniedTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Chiave di ripresa per-sessione (in memoria: il sistema resta stateless).
+   * Alla riconnessione il server riconosce il peer e gli fa riprendere la
+   * stessa identità: stesso id nel roster e, in evento, mano alzata e parola
+   * concessa conservate.
+   */
+  private resumeKey =
+    typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 
   // Cattura microfono
   private captureCtx: AudioContext | null = null;
@@ -410,6 +420,7 @@ export class RoomClient {
         lang: this.opts.lang,
         mode: this.opts.mode,
         role: this.opts.role,
+        resumeKey: this.resumeKey,
       });
     };
     ws.onmessage = (event) => {

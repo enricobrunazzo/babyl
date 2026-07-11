@@ -69,7 +69,7 @@ babyl/
   - `consecutive` — la traduzione parte solo al **rilascio del PTT** (turni puliti, latenza pari alla durata dell'enunciato).
   
   `TRANSLATION_TIMING` imposta il default delle nuove stanze (`release` resta un alias di `consecutive`). Al rilascio del PTT una coda di silenzio fa chiudere l'ultimo segmento nelle modalità a VAD. Sessioni riusate tra enunciati per mantenere il contesto.
-- **Instradamento per parlante (stanze a 3+)**: l'audio tradotto rientra dal motore in ritardo rispetto alla voce. Il server lo consegna in base a **chi ha pronunciato l'enunciato** (memorizzato per coppia di lingue al momento dell'invio), non a chi tiene il canale quando la coda arriva: così, anche se un altro partecipante prende il PTT nel frattempo, la traduzione (e i sottotitoli) raggiunge sempre gli ascoltatori giusti e resta attribuita al parlante corretto.
+- **Instradamento per parlante (stanze a 3+)**: l'audio tradotto rientra dal motore in ritardo rispetto alla voce. Il server lo consegna in base a **chi ha pronunciato l'enunciato** (attribuito **per segmento**, in ordine FIFO, al momento del commit di ciascun segmento), non a chi tiene il canale quando la coda arriva: così, anche se un altro partecipante prende il PTT nel frattempo, la traduzione (e i sottotitoli) raggiunge sempre gli ascoltatori giusti e resta attribuita al parlante corretto.
 - **Sottotitoli live**: la trascrizione della traduzione arriva in streaming a ogni ascoltatore nella propria lingua.
 - Senza `OPENAI_API_KEY` l'app funziona in modalità **voce originale** (nessuna traduzione, tutti sentono tutto): utile per sviluppo e test senza costi.
 - Il motore è pluggabile: `server/src/translation/provider.ts` definisce l'interfaccia, `openaiRealtime.ts` è l'implementazione attiva.
@@ -89,8 +89,11 @@ babyl/
 - **Il server resta l'unica autorità sul canale**: in modalità evento il pubblico ottiene il lock PTT **solo** se ha la parola concessa; altrimenti la richiesta è negata (`ptt-denied` con `reason: "not-granted"`). Riusa l'instradamento di traduzione esistente: nessuna nuova meccanica audio, solo ruoli e controllo del turno sopra il PTT half-duplex.
 
 **Resilienza**
-- Riconnessione automatica del client con backoff esponenziale (rete mobile instabile).
+- Riconnessione automatica del client con backoff esponenziale (rete mobile instabile); al ritorno in primo piano (`visibilitychange`/`online`) i context audio sospesi riprendono e un socket morto in background viene riconnesso subito, senza attendere il backoff.
+- **Continuità d'identità alla riconnessione**: il client presenta una chiave di ripresa segreta (`resumeKey`, per-sessione, mai ribroadcastata) e il server gli fa riprendere lo stesso peer — stesso id nel roster e, in modalità evento, mano alzata e parola concessa conservate — invece di creare un doppione accanto allo zombie.
 - Heartbeat WebSocket lato server: i client spariti senza chiudere la connessione (telefono bloccato, cambio rete) vengono terminati, liberando presenza ed eventuale lock PTT.
+- **Backpressure sull'audio in uscita**: verso gli ascoltatori con troppo arretrato sul socket (rete lenta) i frame vengono scartati — l'audio è live, in ritardo non servirebbe più — invece di far crescere la memoria del server.
+- Le sessioni verso il motore inattive da oltre 5 minuti vengono chiuse (e ricreate in modo trasparente alla pressione PTT successiva): niente connessioni pendenti nelle stanze lunghe, né sorprese da sessione scaduta lato OpenAI; una chiusura inattesa del socket del motore viene comunque rilevata e la sessione rimpiazzata.
 - Apertura della sessione di traduzione con **retry a backoff esponenziale** sui fallimenti transitori del motore (OpenAI sovraccarico → `503`, rate limit → `429`, errori di rete); fallisce subito sugli errori non ritentabili (`401/403/404`: chiave/permessi/modello). Se dopo i tentativi la traduzione resta non disponibile, il client mostra un avviso **non fatale** ("traduzione temporaneamente non disponibile") senza cadere dalla stanza.
 
 ## Configurazione del server

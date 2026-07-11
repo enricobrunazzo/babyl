@@ -14,16 +14,28 @@
 import type { TranslationTiming } from "../../../shared/protocol.ts";
 
 export interface UtteranceCallbacks {
-  /** Chunk audio tradotto (PCM16 mono 24 kHz, base64). */
-  onAudio(chunkBase64: string): void;
+  /**
+   * Chunk audio tradotto (PCM16 mono 24 kHz, base64). `speakerId` è il
+   * parlante che ha pronunciato il segmento da cui nasce questo audio (vedi
+   * setSpeaker): la traduzione rientra in ritardo e va instradata in base a
+   * lui, non a chi tiene il canale quando la coda arriva.
+   */
+  onAudio(chunkBase64: string, speakerId: string): void;
   /** Trascrizione della traduzione, per i sottotitoli live. */
-  onTranscript(text: string, final: boolean): void;
+  onTranscript(text: string, final: boolean, speakerId: string): void;
   onError(error: Error): void;
 }
 
 export interface TranslationSession {
   readonly sourceLang: string;
   readonly targetLang: string;
+  /**
+   * Dichiara chi pronuncia l'audio accodato da qui in poi. Il provider tiene
+   * l'associazione per segmento (FIFO): se un altro peer prende il PTT mentre
+   * la traduzione del segmento precedente è ancora in generazione, audio e
+   * sottotitoli restano attribuiti al parlante giusto.
+   */
+  setSpeaker(speakerId: string): void;
   appendAudio(base64Pcm: string): void;
   /** Fine dell'enunciato (rilascio PTT): avvia la traduzione. */
   commit(): void;

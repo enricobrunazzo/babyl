@@ -1,4 +1,5 @@
 import WebSocket from "ws";
+import { languagePromptName } from "../../../shared/languages.ts";
 import type { TranslationTiming } from "../../../shared/protocol.ts";
 import type {
   TranslationProvider,
@@ -108,10 +109,11 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     const turn = turnConfigFor(timing);
     const useVad = turn.kind === "vad";
 
+    // Nomi espansi ("Italian", non "it"): più robusti dei codici raw nel prompt.
     const instructions =
       `You are a professional simultaneous interpreter. ` +
-      `The speaker talks in "${sourceLang}". ` +
-      `Translate everything into "${targetLang}". ` +
+      `The speaker talks in ${languagePromptName(sourceLang)}. ` +
+      `Translate everything into ${languagePromptName(targetLang)}. ` +
       `Speak only the translation. ` +
       `Do not answer questions. ` +
       `Do not add comments. ` +
@@ -167,6 +169,16 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     // response.done): guardia per non inviare response.cancel a vuoto.
     let responseActive = false;
 
+    // Attribuzione per segmento: chi pronuncia l'audio accodato ora
+    // (setSpeaker), i parlanti dei segmenti committati in attesa di risposta
+    // (FIFO) e il parlante della risposta in generazione. Così la traduzione
+    // che rientra in ritardo resta attribuita a chi l'ha pronunciata anche se
+    // nel frattempo il canale è passato di mano.
+    let currentSpeaker = "";
+    const segmentSpeakers: string[] = [];
+    let responseSpeaker = "";
+    const attributedSpeaker = () => responseSpeaker || currentSpeaker;
+
     ws.on("message", (raw) => {
       let event: { type?: string; [key: string]: unknown };
 
@@ -177,30 +189,39 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       }
 
       switch (event.type) {
+        // Un segmento d'ingresso è stato chiuso (dal VAD o dal commit manuale):
+        // da qui nascerà una risposta, che apparterrà a chi lo ha pronunciato.
+        case "input_audio_buffer.committed": {
+          segmentSpeakers.push(currentSpeaker);
+          break;
+        }
+
         // Traccia se una risposta è in generazione, così cancelResponse() invia
         // response.cancel solo quando c'è davvero qualcosa da annullare (un
         // response.cancel a vuoto verrebbe segnalato come errore dal motore).
         case "response.created": {
           responseActive = true;
+          responseSpeaker = segmentSpeakers.shift() ?? currentSpeaker;
           break;
         }
         case "response.done":
         case "response.cancelled": {
           responseActive = false;
+          responseSpeaker = "";
           break;
         }
 
         case "response.output_audio.delta":
         case "response.audio.delta": {
           const delta = typeof event.delta === "string" ? event.delta : "";
-          if (delta) callbacks.onAudio(delta);
+          if (delta) callbacks.onAudio(delta, attributedSpeaker());
           break;
         }
 
         case "response.output_audio_transcript.delta":
         case "response.audio_transcript.delta": {
           const delta = typeof event.delta === "string" ? event.delta : "";
-          if (delta) callbacks.onTranscript(delta, false);
+          if (delta) callbacks.onTranscript(delta, false, attributedSpeaker());
           break;
         }
 
@@ -208,7 +229,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
         case "response.audio_transcript.done": {
           const transcript =
             typeof event.transcript === "string" ? event.transcript : "";
-          callbacks.onTranscript(transcript, true);
+          callbacks.onTranscript(transcript, true, attributedSpeaker());
           break;
         }
 
@@ -226,11 +247,29 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       callbacks.onError(error as Error);
     });
 
+    // Le sessioni Realtime hanno una durata massima lato OpenAI: quel limite
+    // (o un riavvio del motore) chiude il socket in modo pulito, senza evento
+    // "error". Senza questo handler la sessione resterebbe nella mappa della
+    // stanza come zombie: appendAudio diventerebbe un no-op silenzioso e la
+    // traduzione smetterebbe di funzionare senza alcun avviso. Segnalando
+    // l'errore, la stanza la scarta e la prossima pressione PTT ne crea una
+    // nuova.
+    let closedByUs = false;
+    ws.on("close", () => {
+      if (!closedByUs) {
+        callbacks.onError(new Error("sessione realtime chiusa dal motore"));
+      }
+    });
+
     let buffered = false;
 
     return {
       sourceLang,
       targetLang,
+
+      setSpeaker(speakerId: string) {
+        currentSpeaker = speakerId;
+      },
 
       appendAudio(base64Pcm: string) {
         if (!base64Pcm) return;
@@ -278,6 +317,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       },
 
       close() {
+        closedByUs = true;
         if (
           ws.readyState === WebSocket.OPEN ||
           ws.readyState === WebSocket.CONNECTING

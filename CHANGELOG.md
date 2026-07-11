@@ -7,6 +7,47 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ## [Non rilasciato]
 
+### Corretto
+
+- **Sessione del motore zombie dopo una chiusura pulita.** Le sessioni OpenAI
+  Realtime hanno una durata massima: al limite (o a un riavvio del motore) il
+  socket si chiude senza evento `error`, la sessione restava nella mappa della
+  stanza e la traduzione smetteva di funzionare in silenzio. Ora la chiusura
+  inattesa viene rilevata, la sessione scartata e la pressione PTT successiva
+  ne crea una nuova. (`server/src/translation/openaiRealtime.ts`)
+- **Attribuzione dell'enunciato per segmento (FIFO), non per coppia di
+  lingue.** In simultanea, se un altro peer prendeva il PTT mentre la coda
+  tradotta del parlante precedente era ancora in volo, i sottotitoli venivano
+  attribuiti al parlante sbagliato. Il provider ora tiene l'associazione
+  segmento→parlante (dichiarata con `setSpeaker`, consumata in ordine FIFO al
+  `response.created`) e la passa alle callback di audio e trascrizione.
+  (`server/src/translation/{provider,openaiRealtime}.ts`, `server/src/rooms.ts`)
+- **Riconnessione senza perdere l'identità.** Il client presenta una chiave di
+  ripresa segreta (`resumeKey`, generata per-sessione, mai ribroadcastata): al
+  rientro il server sostituisce il socket dello zombie e il peer riprende lo
+  stesso id nel roster — in modalità evento conserva mano alzata e parola
+  concessa, prima perse a ogni riconnessione. La chiusura tardiva del vecchio
+  socket non butta più fuori il peer rientrato (guardia sul socket nel leave).
+  (`shared/protocol.ts`, `server/src/{rooms,index}.ts`, `web/src/lib/roomClient.ts`)
+- **Backpressure sull'audio in uscita.** I frame verso socket con oltre
+  ~512 KB di arretrato (rete lenta) vengono scartati invece di accumularsi
+  senza limite nella memoria del server; i byte contati in `/metrics` sono
+  solo quelli davvero inviati. (`server/src/rooms.ts`)
+- **Sessioni single-device orfane.** Al `leave` di un peer le sue sessioni
+  `solo:` vengono chiuse subito invece di sopravvivere fino alla distruzione
+  della stanza. (`server/src/rooms.ts`)
+
+### Modificato
+
+- **Timeout di inattività sulle sessioni del motore**: dopo 5 minuti senza
+  audio una sessione viene chiusa (sweep al minuto) e ricreata in modo
+  trasparente alla pressione PTT successiva — niente connessioni pendenti
+  nelle stanze lunghe con ore di silenzio. (`server/src/rooms.ts`)
+- **Nomi di lingua espansi nel prompt del motore**: le instructions usano
+  "Italian"/"German" invece dei codici raw ("it", "de"), più robusti per il
+  modello. Mappa condivisa in `shared/languages.ts`.
+  (`server/src/translation/openaiRealtime.ts`)
+
 ### Aggiunto
 
 - **Correzioni UX dal collaudo.** Quattro rifiniture d'uso quotidiano:

@@ -99,7 +99,9 @@ wss.on("connection", (socket: WebSocket) => {
 
   socket.on("close", () => {
     clearInterval(heartbeat);
-    if (session.roomId) rooms.leave(session.roomId, session.peerId);
+    // Il socket fa da guardia: se il peer si è già riconnesso (resumeKey),
+    // la chiusura del vecchio socket non deve buttarlo fuori dalla stanza.
+    if (session.roomId) rooms.leave(session.roomId, session.peerId, socket);
   });
 });
 
@@ -123,8 +125,14 @@ function handleMessage(
       }
       const mode = message.mode === "event" ? "event" : "conversation";
       const role = message.role === "audience" ? "audience" : "speaker";
+      const resumeKey =
+        typeof message.resumeKey === "string" && message.resumeKey
+          ? message.resumeKey.slice(0, 64)
+          : undefined;
       session.roomId = roomId;
-      rooms.get(roomId).join(
+      // Una riconnessione con resumeKey riprende il peer esistente: da qui in
+      // poi questa connessione agisce con l'id ripreso.
+      session.peerId = rooms.get(roomId).join(
         {
           id: session.peerId,
           nickname,
@@ -134,6 +142,7 @@ function handleMessage(
         },
         socket,
         mode,
+        resumeKey,
       );
       break;
     }
