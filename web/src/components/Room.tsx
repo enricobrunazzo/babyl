@@ -420,6 +420,20 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
         </>
       )}
 
+      {state.pttDenied && (
+        <p className="ptt-denied-toast" role="status">
+          {state.pttDenied === "not-granted" ? ev.audienceListenHint : t.pttBlocked}
+        </p>
+      )}
+
+      {/* Il canale è tornato libero ma la coda tradotta sta ancora uscendo:
+          senza avviso due persone finirebbero per parlare sopra la voce. */}
+      {!isSolo && state.playing && state.channel.speakerId === null && (
+        <p className="translation-playing" role="status">
+          🔊 {t.translationPlaying}
+        </p>
+      )}
+
       {state.playing && (
         <button
           type="button"

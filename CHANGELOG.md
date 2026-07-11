@@ -9,6 +9,28 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Aggiunto
 
+- **Correzioni UX dal collaudo.** Quattro rifiniture d'uso quotidiano:
+  - **Feedback quando il PTT è negato**: alla risposta `ptt-denied` del server
+    il telefono vibra brevemente e compare un avviso transitorio — «canale
+    occupato» oppure, per il pubblico di un evento senza parola concessa,
+    l'invito ad alzare la mano. Prima la pressione cadeva nel silenzio.
+    (`web/src/lib/roomClient.ts`, `web/src/components/Room.tsx`)
+  - **Ripresa immediata al ritorno in primo piano**: su mobile il socket muore
+    spesso senza evento `close` mentre lo schermo è bloccato o si cambia app.
+    Ora `visibilitychange`/`online` riattivano i context audio sospesi e, se il
+    socket è morto, riconnettono subito azzerando il backoff (il rientro è un
+    gesto dell'utente). Rianima anche le sessioni date per perse dopo i
+    tentativi esauriti. (`web/src/lib/roomClient.ts`)
+  - **Indicatore «Traduzione in riproduzione…»**: in simultanea la voce
+    tradotta continua a uscire dopo che il canale è tornato libero; un avviso
+    (nelle 14 lingue) lo segnala, così non si parla sopra la coda.
+    (`web/src/lib/i18n.ts`, `web/src/components/Room.tsx`)
+  - **Ripristino del form dopo un refresh**: nome e lingue dell'onboarding
+    sopravvivono a un ricaricamento accidentale via `sessionStorage`
+    (per-scheda, sparisce alla chiusura — come il banner PWA, niente
+    localStorage: il sistema resta stateless). Il consenso si richiede ogni
+    volta. (`web/src/components/Onboarding.tsx`)
+
 - **Annullamento e interruzione della traduzione (risparmio di token).** Due
   controlli richiesti dal collaudo sul campo, utili soprattutto in
   single-device:

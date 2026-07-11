@@ -68,6 +68,8 @@ export interface RoomState {
   floor: string | null;
   /** Evento/pubblico: microfono negato al momento della concessione (Q&A). */
   micGrantDenied: boolean;
+  /** Ultima richiesta PTT negata dal server (feedback transitorio), o null. */
+  pttDenied: "busy" | "not-granted" | null;
   /** Traduzione in corso di riproduzione: abilita il pulsante "Interrompi". */
   playing: boolean;
   error: "mic-denied" | "connection" | null;
@@ -109,6 +111,8 @@ export class RoomClient {
   private generation = 0;
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Spegne il feedback "PTT negato" dopo qualche secondo. */
+  private pttDeniedTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Cattura microfono
   private captureCtx: AudioContext | null = null;
@@ -161,6 +165,7 @@ export class RoomClient {
     hands: [],
     floor: null,
     micGrantDenied: false,
+    pttDenied: null,
     playing: false,
     error: null,
   };
@@ -229,8 +234,42 @@ export class RoomClient {
 
     this.setState({ status: "connecting" });
     if (this.opts.debug) this.startMetrics();
+    // Rientro in primo piano o rete tornata: su mobile il socket muore spesso
+    // senza evento close mentre lo schermo è bloccato; questi segnali fanno
+    // riprendere audio e connessione subito, senza aspettare il backoff.
+    document.addEventListener("visibilitychange", this.handleWake);
+    window.addEventListener("online", this.handleWake);
     this.openSocket();
   }
+
+  /**
+   * Al ritorno in primo piano (o al ripristino della rete) riattiva i context
+   * audio sospesi dal browser e, se il socket è morto nel frattempo, riconnette
+   * immediatamente azzerando il backoff: il rientro è un gesto dell'utente.
+   */
+  private handleWake = (): void => {
+    if (this.disposed || document.visibilityState !== "visible") return;
+    void this.captureCtx?.resume().catch(() => {});
+    void this.playCtx?.resume().catch(() => {});
+    // Prima del join iniziale (status idle/mic/connecting/error) non c'è nulla
+    // da riconnettere: ci pensa il flusso di connect() in corso.
+    const status = this.state.status;
+    if (status !== "connected" && status !== "reconnecting" && status !== "closed") {
+      return;
+    }
+    const socketAlive =
+      this.ws !== null &&
+      (this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING);
+    if (socketAlive) return;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = 0;
+    this.setState({ error: null });
+    this.openSocket();
+  };
 
   /**
    * Attiva il microfono su richiesta: usato dal pubblico di un evento quando gli
@@ -409,6 +448,8 @@ export class RoomClient {
 
   disconnect(): void {
     this.disposed = true;
+    document.removeEventListener("visibilitychange", this.handleWake);
+    window.removeEventListener("online", this.handleWake);
     if (this.metricsTimer !== null) {
       clearInterval(this.metricsTimer);
       this.metricsTimer = null;
@@ -416,6 +457,10 @@ export class RoomClient {
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
+    }
+    if (this.pttDeniedTimer !== null) {
+      clearTimeout(this.pttDeniedTimer);
+      this.pttDeniedTimer = null;
     }
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.send({ type: "leave" });
@@ -584,8 +629,20 @@ export class RoomClient {
         break;
       }
       case "ptt-denied": {
-        // Nessuna azione: il broadcast "channel" tiene già la UI in stato
-        // Bloccato (grigio) per tutti i non-parlanti.
+        // Feedback transitorio: spiega perché la pressione non ha aperto il
+        // canale (occupato, oppure pubblico senza parola concessa). Il
+        // broadcast "channel" tiene comunque la UI in stato Bloccato.
+        try {
+          navigator.vibrate?.(80);
+        } catch {
+          // Vibrazione non disponibile: resta il feedback visivo.
+        }
+        if (this.pttDeniedTimer !== null) clearTimeout(this.pttDeniedTimer);
+        this.pttDeniedTimer = setTimeout(() => {
+          this.pttDeniedTimer = null;
+          this.setState({ pttDenied: null });
+        }, 2500);
+        this.setState({ pttDenied: message.reason });
         break;
       }
       case "transcript": {
@@ -663,11 +720,18 @@ export class RoomClient {
         this.awaitingFirstFrame = true;
       }
     }
+    const gotChannel = channel.speakerId === this.state.self?.id;
+    if (gotChannel && this.pttDeniedTimer !== null) {
+      clearTimeout(this.pttDeniedTimer);
+      this.pttDeniedTimer = null;
+    }
     this.setState({
       channel,
       subtitle: startingUtterance ? null : this.state.subtitle,
       // Nuovo enunciato = nuovo tentativo: azzera l'avviso di traduzione ko.
       translationError: startingUtterance ? false : this.state.translationError,
+      // Canale ottenuto: l'eventuale feedback "negato" non è più attuale.
+      pttDenied: gotChannel ? null : this.state.pttDenied,
     });
     this.setTransmitting(channel.speakerId === this.state.self?.id);
   }

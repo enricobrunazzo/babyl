@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { detectLanguage, LANGUAGES } from "../lib/languages";
+import { detectLanguage, languageByCode, LANGUAGES } from "../lib/languages";
 import { strings, eventStrings } from "../lib/i18n";
 import { newRoomId } from "../lib/roomName";
 import { BabylMark } from "./BabylLogo";
@@ -22,6 +22,37 @@ function otherLang(lang: string): string {
   return (LANGUAGES.find((l) => l.code !== lang) ?? LANGUAGES[0]).code;
 }
 
+/**
+ * Ripristino del form dopo un refresh accidentale: nome e lingue vivono in
+ * sessionStorage (per-scheda, sparisce alla chiusura — come il banner PWA),
+ * coerente col vincolo stateless "niente localStorage, nessun account".
+ */
+const RESTORE_NICKNAME = "babyl:nickname";
+const RESTORE_LANG = "babyl:lang";
+const RESTORE_LANG_B = "babyl:langB";
+
+function restore(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function persist(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    // Storage non disponibile (privacy mode): il form riparte vuoto, pazienza.
+  }
+}
+
+/** Lingua salvata se ancora valida, altrimenti quella rilevata dal browser. */
+function restoreLang(key: string, fallback: () => string): string {
+  const saved = restore(key);
+  return saved && languageByCode(saved) ? saved : fallback();
+}
+
 interface Props {
   roomId: string;
   /** Il link portava `?event=1`: l'utente entra come pubblico di un evento. */
@@ -34,17 +65,29 @@ interface Props {
  * Onboarding invisibile (§2.1): lingua auto-compilata da navigator.language
  * con menu a tendina minimale per l'override, nickname a singolo tap
  * (autocomplete="given-name"), consenso esplicito e un unico pulsante ENTRA.
- * Nessun dato viene scritto in localStorage: il sistema è stateless.
+ * Nessun dato viene scritto in localStorage: il sistema è stateless. Nome e
+ * lingue vivono solo in sessionStorage (per-scheda) per sopravvivere a un
+ * refresh accidentale, come già il banner PWA.
  *
  * Modalità evento: chi apre il link con `?event=1` entra come pubblico
  * (ascolto puro); il relatore crea l'evento scegliendo la scheda "Evento".
  */
 export function Onboarding({ roomId, eventJoin, onRoomChange, onEnter }: Props) {
   const [mode, setMode] = useState<"room" | "solo" | "event">("room");
-  const [lang, setLang] = useState(detectLanguage());
-  const [langB, setLangB] = useState(() => otherLang(detectLanguage()));
-  const [nickname, setNickname] = useState("");
+  const [lang, setLang] = useState(() => restoreLang(RESTORE_LANG, detectLanguage));
+  const [langB, setLangB] = useState(() =>
+    restoreLang(RESTORE_LANG_B, () => otherLang(detectLanguage())),
+  );
+  const [nickname, setNickname] = useState(() => restore(RESTORE_NICKNAME) ?? "");
   const [consent, setConsent] = useState(false);
+
+  // Salva nome e lingue alla conferma, così un refresh in stanza non obbliga
+  // a ricompilare il form (il consenso invece si richiede ogni volta).
+  const persistProfile = (profile: Profile) => {
+    persist(RESTORE_NICKNAME, profile.nickname);
+    persist(RESTORE_LANG, profile.lang);
+    if (profile.langB) persist(RESTORE_LANG_B, profile.langB);
+  };
 
   // L'interfaccia segue la lingua scelta: chi seleziona "English" vede
   // l'onboarding in inglese, e così via. La direzione del testo (RTL per
@@ -92,14 +135,17 @@ export function Onboarding({ roomId, eventJoin, onRoomChange, onEnter }: Props) 
 
   // --- Pubblico di un evento (link con ?event=1) ---
   if (eventJoin) {
-    const enterAudience = () =>
-      consent &&
-      onEnter({
+    const enterAudience = () => {
+      if (!consent) return;
+      const profile: Profile = {
         nickname: nickname.trim() || ev.roleAudience,
         lang,
         mode: "event",
         role: "audience",
-      });
+      };
+      persistProfile(profile);
+      onEnter(profile);
+    };
     return (
       <main className="onboarding" dir={t.dir}>
         <header className="brand">
@@ -159,13 +205,15 @@ export function Onboarding({ roomId, eventJoin, onRoomChange, onEnter }: Props) 
         onSubmit={(event) => {
           event.preventDefault();
           if (!canEnter) return;
-          onEnter({
+          const profile: Profile = {
             nickname: nickname.trim() || (solo ? t.deviceName : ""),
             lang,
             mode,
             langB: solo ? langB : undefined,
             role: mode === "event" ? "speaker" : undefined,
-          });
+          };
+          persistProfile(profile);
+          onEnter(profile);
         }}
       >
         <div className="mode-switch" role="group" aria-label={t.modeGroupLabel}>

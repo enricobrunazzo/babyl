@@ -480,6 +480,28 @@ main {
   color: var(--text-dim);
 }
 
+/* Feedback transitorio: richiesta PTT negata dal server. */
+.ptt-denied-toast {
+  align-self: center;
+  margin: 4px 0 0;
+  padding: 8px 14px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid var(--talking);
+  border-radius: 12px;
+  color: var(--talking);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* Canale libero ma voce tradotta ancora in riproduzione. */
+.translation-playing {
+  align-self: center;
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
 /* Interrompi la traduzione in riproduzione (ferma audio e generazione). */
 .interrupt-button {
   align-self: center;
