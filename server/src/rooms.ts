@@ -276,6 +276,34 @@ export class Room {
     this.broadcast({ type: "channel", channel: this.channel });
   }
 
+  /**
+   * Rilascia il canale scartando l'enunciato senza tradurlo (annullamento): il
+   * buffer d'ingresso delle sessioni viene svuotato invece di essere committato.
+   * In consecutiva (sempre in single-device) la traduzione non è ancora partita,
+   * quindi non si spreca alcun token.
+   */
+  cancelLock(peerId: string): void {
+    if (this.speakerId !== peerId) return;
+    this.speakerId = null;
+    this.endLock();
+    this.discardUtterance();
+    this.broadcast({ type: "channel", channel: this.channel });
+  }
+
+  /**
+   * Interrompe la traduzione in corso di generazione per il richiedente. Agisce
+   * solo sulle sue sessioni single-device (`solo:<peerId>:…`): lì il parlante è
+   * anche l'ascoltatore, quindi fermare la generazione risparmia i suoi token
+   * senza toccare le sessioni condivise di stanza, che servono altri ascoltatori.
+   */
+  stopTranslation(peerId: string): void {
+    const prefix = `solo:${peerId}:`;
+    for (const [key, session] of this.sessions) {
+      if (!key.startsWith(prefix)) continue;
+      void session.then((s) => s.cancelResponse()).catch(() => {});
+    }
+  }
+
   /** Chunk audio dal parlante come frame binario (PCM16 24 kHz). */
   handleAudio(peerId: string, data: Buffer): void {
     if (peerId !== this.speakerId) return; // solo chi detiene il lock
@@ -342,6 +370,13 @@ export class Room {
   private commitUtterance(): void {
     for (const session of this.sessions.values()) {
       void session.then((s) => s.commit()).catch(() => {});
+    }
+  }
+
+  /** Scarta l'enunciato accumulato su tutte le sessioni (annullamento del PTT). */
+  private discardUtterance(): void {
+    for (const session of this.sessions.values()) {
+      void session.then((s) => s.discard()).catch(() => {});
     }
   }
 

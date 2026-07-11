@@ -27,6 +27,18 @@ export interface TranslationSession {
   appendAudio(base64Pcm: string): void;
   /** Fine dell'enunciato (rilascio PTT): avvia la traduzione. */
   commit(): void;
+  /**
+   * Scarta l'audio accumulato per l'enunciato corrente senza tradurlo (svuota
+   * il buffer d'ingresso). Usato per l'annullamento: in consecutiva non è
+   * ancora partita alcuna generazione, quindi non si spende alcun token.
+   */
+  discard(): void;
+  /**
+   * Annulla la generazione della traduzione eventualmente in corso, così il
+   * motore smette di produrre l'audio residuo (token risparmiati). No-op se non
+   * c'è una risposta attiva.
+   */
+  cancelResponse(): void;
   close(): void;
 }
 

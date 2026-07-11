@@ -77,6 +77,8 @@ class FakeProvider implements TranslationProvider {
     timing: TranslationTiming;
     appended: string[];
     commits: number;
+    discards: number;
+    cancels: number;
     closed: boolean;
     callbacks: UtteranceCallbacks;
   }[] = [];
@@ -92,6 +94,8 @@ class FakeProvider implements TranslationProvider {
       timing,
       appended: [] as string[],
       commits: 0,
+      discards: 0,
+      cancels: 0,
       closed: false,
       callbacks,
     };
@@ -105,6 +109,12 @@ class FakeProvider implements TranslationProvider {
       },
       commit() {
         record.commits += 1;
+      },
+      discard() {
+        record.discards += 1;
+      },
+      cancelResponse() {
+        record.cancels += 1;
       },
       close() {
         record.closed = true;
@@ -373,6 +383,81 @@ test("single-device: traduce source→target e rimanda l'audio al mittente", asy
 
   const pair = room.stats.pairs["it->en"];
   assert.ok(pair && pair.inMs > 0 && pair.outMs > 0);
+});
+
+test("cancelLock: scarta l'enunciato senza tradurlo (nessun commit)", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("annulla", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+
+  // Annulla invece di rilasciare: l'audio accumulato viene scartato, non tradotto.
+  room.cancelLock("a");
+  await tick();
+
+  assert.equal(room.channel.speakerId, null);
+  assert.equal(lastOfType(b, "channel")?.channel.speakerId, null);
+  assert.equal(provider.sessions[0].discards, 1);
+  assert.equal(provider.sessions[0].commits, 0);
+});
+
+test("cancelLock: agisce solo se il richiedente detiene il canale", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("annulla2", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+
+  // b non tiene il canale: il suo annullamento è ignorato.
+  room.cancelLock("b");
+  await tick();
+  assert.equal(room.channel.speakerId, "a");
+  assert.equal(provider.sessions[0].discards, 0);
+});
+
+test("stopTranslation: annulla la generazione solo delle sessioni single-device del richiedente", async () => {
+  const provider = new FakeProvider();
+  const room = new Room("stop", provider);
+  const a = fakeSocket();
+  const b = fakeSocket();
+  const c = fakeSocket();
+  room.join(peer("a", "it"), a as unknown as WebSocket);
+  room.join(peer("b", "de"), b as unknown as WebSocket);
+  room.join(peer("c", "fr"), c as unknown as WebSocket);
+  room.setSolo("a", "it", "en");
+
+  // a (single-device) apre la sua sessione solo:a:it->en.
+  room.requestLock("a");
+  room.handleAudio("a", Buffer.from("ciao"));
+  await tick();
+  room.releaseLock("a");
+  await tick();
+
+  // b è un peer di stanza normale: parlando apre sessioni condivise (de->fr).
+  room.requestLock("b");
+  room.handleAudio("b", Buffer.from("hallo"));
+  await tick();
+
+  const soloSession = provider.sessions.find((s) => s.key === "it->en");
+  const sharedSession = provider.sessions.find((s) => s.key === "de->fr");
+  assert.ok(soloSession && sharedSession);
+
+  // a interrompe: solo la sua sessione single-device viene annullata.
+  room.stopTranslation("a");
+  await tick();
+  assert.equal(soloSession!.cancels, 1);
+  assert.equal(sharedSession!.cancels, 0);
 });
 
 const failingProvider = (): TranslationProvider => ({

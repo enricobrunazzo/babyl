@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { PttState } from "../lib/roomClient";
+import { useHoldToTalk } from "../lib/holdToTalk";
 import { LockIcon, MicIcon } from "./icons";
 
 export interface PttLabels {
@@ -8,6 +9,8 @@ export interface PttLabels {
   blocked: string;
   /** Costruisce l'etichetta «Nome» sta parlando… nella lingua attiva. */
   speaking: (name: string) => string;
+  /** Suggerimento mostrato quando lo scorrimento arma l'annullamento. */
+  cancelHint: string;
 }
 
 interface Props {
@@ -18,6 +21,12 @@ interface Props {
   labels: PttLabels;
   onPress: () => void;
   onRelease: () => void;
+  /**
+   * Annulla l'enunciato (scorri via mentre parli, o Esc su desktop): l'audio
+   * viene scartato senza tradurlo. Presente solo quando l'annullamento è
+   * efficace (es. tempistica consecutiva): assente, il gesto è premi/rilascia.
+   */
+  onCancel?: () => void;
 }
 
 /**
@@ -26,6 +35,9 @@ interface Props {
  *  - In Trasmissione (rosso): microfono aperto
  *  - Bloccato (grigio): un altro partecipante occupa il canale,
  *    il pulsante è disabilitato via software.
+ *
+ * Quando `onCancel` è fornito, scorrere via mentre si tiene premuto (o premere
+ * Esc su desktop) **annulla** l'enunciato senza tradurlo — niente token sprecati.
  */
 export function PTTButton({
   state,
@@ -34,27 +46,20 @@ export function PTTButton({
   labels,
   onPress,
   onRelease,
+  onCancel,
 }: Props) {
-  const holding = useRef(false);
+  const { armed, press, move, release, cancel, reset } = useHoldToTalk({
+    onPress,
+    onRelease,
+    onCancel,
+  });
   const stateLabel: Record<PttState, string> = {
     free: labels.free,
     talking: labels.talking,
     blocked: labels.blocked,
   };
 
-  const press = useCallback(() => {
-    if (holding.current) return;
-    holding.current = true;
-    onPress();
-  }, [onPress]);
-
-  const release = useCallback(() => {
-    if (!holding.current) return;
-    holding.current = false;
-    onRelease();
-  }, [onRelease]);
-
-  // La barra spaziatrice funziona da PTT su desktop.
+  // La barra spaziatrice funziona da PTT su desktop; Esc annulla l'enunciato.
   useEffect(() => {
     const isBlocked = disabled || state === "blocked";
     const onKeyDown = (event: KeyboardEvent) => {
@@ -62,7 +67,9 @@ export function PTTButton({
         const target = event.target as HTMLElement;
         if (target.tagName === "INPUT" || target.tagName === "SELECT") return;
         event.preventDefault();
-        press();
+        press(0, 0);
+      } else if (event.code === "Escape") {
+        cancel();
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
@@ -74,12 +81,12 @@ export function PTTButton({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
     };
-  }, [disabled, state, press, release]);
+  }, [disabled, state, press, release, cancel]);
 
   // Rilascio di sicurezza se il canale viene perso mentre si tiene premuto.
   useEffect(() => {
-    if (state === "blocked") holding.current = false;
-  }, [state]);
+    if (state === "blocked") reset();
+  }, [state, reset]);
 
   const blocked = disabled || state === "blocked";
 
@@ -87,15 +94,16 @@ export function PTTButton({
     <div className="ptt">
       <button
         type="button"
-        className={`ptt-button ptt-${state}`}
+        className={`ptt-button ptt-${state}${armed ? " armed" : ""}`}
         disabled={blocked}
         aria-pressed={state === "talking"}
         aria-label={stateLabel[state]}
         onPointerDown={(event) => {
           event.preventDefault();
           event.currentTarget.setPointerCapture(event.pointerId);
-          if (!blocked) press();
+          if (!blocked) press(event.clientX, event.clientY);
         }}
+        onPointerMove={(event) => move(event.clientX, event.clientY)}
         onPointerUp={release}
         onPointerCancel={release}
         onContextMenu={(event) => event.preventDefault()}
@@ -105,7 +113,9 @@ export function PTTButton({
         </span>
       </button>
       <p className="ptt-label" role="status">
-        {state === "blocked" && speakerName ? (
+        {armed ? (
+          <em className="ptt-cancel-hint">{labels.cancelHint}</em>
+        ) : state === "blocked" && speakerName ? (
           <em>{labels.speaking(speakerName)}</em>
         ) : (
           stateLabel[state]

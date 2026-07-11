@@ -68,6 +68,8 @@ export interface RoomState {
   floor: string | null;
   /** Evento/pubblico: microfono negato al momento della concessione (Q&A). */
   micGrantDenied: boolean;
+  /** Traduzione in corso di riproduzione: abilita il pulsante "Interrompi". */
+  playing: boolean;
   error: "mic-denied" | "connection" | null;
 }
 
@@ -117,6 +119,8 @@ export class RoomClient {
   // Riproduzione
   private playCtx: AudioContext | null = null;
   private playCursor = 0;
+  /** Sorgenti audio schedulate ma non ancora terminate: servono a interromperle. */
+  private activeSources = new Set<AudioBufferSourceNode>();
 
   // Metriche diagnostiche (campionate solo in modalità debug).
   private metricsTimer: ReturnType<typeof setInterval> | null = null;
@@ -157,6 +161,7 @@ export class RoomClient {
     hands: [],
     floor: null,
     micGrantDenied: false,
+    playing: false,
     error: null,
   };
 
@@ -439,6 +444,45 @@ export class RoomClient {
     this.send({ type: "ptt", action: "release" });
   }
 
+  /**
+   * Annulla l'enunciato: rilascia il canale scartando l'audio (non ancora
+   * inviato) senza tradurlo. Utile per rifare un enunciato sporcato senza
+   * sprecare token — in consecutiva la traduzione parte solo al rilascio.
+   */
+  pttCancel(): void {
+    // Butta i campioni pendenti invece di inviarli, poi chiedi al server di
+    // scartare quanto già accumulato per questo enunciato.
+    this.pendingSamples = [];
+    this.pendingLength = 0;
+    this.send({ type: "ptt", action: "cancel" });
+  }
+
+  /**
+   * Interrompe la traduzione: ferma subito la riproduzione locale e, in
+   * single-device, annulla anche la generazione lato motore (token risparmiati:
+   * l'utente non deve ascoltare fino in fondo). In stanza si limita a fermare
+   * la propria riproduzione, senza toccare la sessione condivisa degli altri.
+   */
+  interruptTranslation(): void {
+    this.stopPlayback();
+    if (this.state.solo) this.send({ type: "stop-translation" });
+  }
+
+  /** Ferma tutte le sorgenti audio in riproduzione/schedulate e azzera la coda. */
+  private stopPlayback(): void {
+    for (const source of this.activeSources) {
+      source.onended = null;
+      try {
+        source.stop();
+      } catch {
+        // Già ferma o non ancora avviata: ignora.
+      }
+    }
+    this.activeSources.clear();
+    this.playCursor = this.playCtx?.currentTime ?? 0;
+    this.setState({ playing: false });
+  }
+
   updateLanguage(lang: string): void {
     this.send({ type: "update-lang", lang });
     this.setState({
@@ -665,9 +709,19 @@ export class RoomClient {
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(ctx.destination);
+    // Traccia la sorgente per poterla interrompere; quando l'ultima termina
+    // naturalmente, la riproduzione è finita.
+    this.activeSources.add(source);
+    source.onended = () => {
+      this.activeSources.delete(source);
+      if (this.activeSources.size === 0 && this.state.playing) {
+        this.setState({ playing: false });
+      }
+    };
     // Piccolo jitter buffer, poi accodamento senza interruzioni.
     const startAt = Math.max(ctx.currentTime + 0.05, this.playCursor);
     source.start(startAt);
     this.playCursor = startAt + audioBuffer.duration;
+    if (!this.state.playing) this.setState({ playing: true });
   }
 }

@@ -9,6 +9,27 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Aggiunto
 
+- **Annullamento e interruzione della traduzione (risparmio di token).** Due
+  controlli richiesti dal collaudo sul campo, utili soprattutto in
+  single-device:
+  - **Annulla l'enunciato**: mentre si tiene premuto il microfono (o il PTT in
+    tempistica *consecutiva*) si può **scorrere via** — o premere `Esc` su
+    desktop — per **scartare l'audio senza tradurlo**. Serve a rifare un
+    enunciato sporcato (es. l'interlocutore parla sopra) senza spendere token:
+    in consecutiva la traduzione parte solo al rilascio, quindi l'annullamento
+    svuota il buffer d'ingresso prima che parta qualsiasi generazione.
+  - **Interrompi la traduzione**: quando l'audio tradotto è in riproduzione,
+    un pulsante **⏹ Interrompi** la ferma subito. In single-device annulla
+    anche la generazione lato motore (`response.cancel`), così non si producono
+    (e pagano) i token dell'audio residuo che non serve ascoltare; in stanza
+    ferma solo la propria riproduzione, senza toccare la sessione condivisa
+    degli altri ascoltatori. Localizzato in tutte le 14 lingue. Coperto da test
+    unitari del server (annullamento senza commit, interruzione limitata alle
+    sessioni single-device del richiedente) e da uno smoke UI del gesto
+    "scorri per annullare". (`shared/protocol.ts`, `server/src/rooms.ts`,
+    `server/src/translation/{provider,openaiRealtime}.ts`,
+    `web/src/lib/{roomClient,holdToTalk}.ts`,
+    `web/src/components/{MicButton,PTTButton,Room}.tsx`)
 - **Modalità evento (conferenza + Q&A) per fiere, convention e platee
   multilingue.** Un relatore parla dal microfono dell'app e tutti gli spettatori
   ascoltano nella propria lingua, tradotti in tempo reale; il pubblico entra dal
@@ -38,6 +59,15 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
   Coperto da un test end-to-end dedicato (`tests/pwa.mjs`, in CI): manifest,
   icone, meta iOS, registrazione del service worker e banner su entrambi i
   percorsi (Android/desktop e iOS/Safari).
+
+### Modificato
+
+- **Microcopy dell'onboarding e del gate auricolari.** L'opzione di modalità
+  passa da *«In stanza»* a *«Stanza»* (coerente con le sorelle *«Un solo
+  dispositivo»* / *«Evento»*). Il gate di ingresso all'evento ora invita a
+  indossare *«cuffie o auricolari»* (in tutte le lingue): l'animazione mostra
+  un'icona di cuffie, quindi il testo copre entrambi i tipi di dispositivo
+  invece dei soli auricolari. (`web/src/lib/i18n.ts`)
 
 ### Corretto
 

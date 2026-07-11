@@ -123,6 +123,11 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   const selfLanguage = languageByCode(state.self?.lang ?? "");
   const timingList = timingOptions(t);
   const timing = timingList.find((o) => o.value === state.translation.timing);
+  // L'annullamento del PTT è efficace solo quando nulla è ancora stato tradotto
+  // al rilascio: in consecutiva (sempre in single-device). In streaming/intervista
+  // il VAD ha già emesso i segmenti, quindi non si offre il gesto (fuorviante).
+  const pttCancelable =
+    state.translation.enabled && state.translation.timing === "consecutive";
 
   // Modalità evento: ruolo e stato della parola (Q&A).
   const role = state.role;
@@ -368,6 +373,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
                     flag={lang?.flag ?? "🌐"}
                     name={lang?.nativeName ?? code}
                     holdLabel={t.micHold(lang?.nativeName ?? code)}
+                    cancelLabel={t.cancel}
                     recording={recording}
                     disabled={!connected || otherTalking}
                     onPress={() => {
@@ -375,12 +381,13 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
                       client.pttDown();
                     }}
                     onRelease={() => client.pttUp()}
+                    onCancel={() => client.pttCancel()}
                   />
                 );
               })}
           </div>
           <p className="ptt-label" role="status">
-            {t.soloPttHint}
+            {pttState === "talking" ? t.cancelHint : t.soloPttHint}
           </p>
         </div>
       ) : (
@@ -404,11 +411,23 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               talking: t.pttTalking,
               blocked: t.pttBlocked,
               speaking: t.pttSpeaking,
+              cancelHint: t.cancelHint,
             }}
             onPress={() => client.pttDown()}
             onRelease={() => client.pttUp()}
+            onCancel={pttCancelable ? () => client.pttCancel() : undefined}
           />
         </>
+      )}
+
+      {state.playing && (
+        <button
+          type="button"
+          className="interrupt-button"
+          onClick={() => client.interruptTranslation()}
+        >
+          ⏹ {t.interrupt}
+        </button>
       )}
 
       {state.translationError && (

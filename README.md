@@ -36,6 +36,7 @@ babyl/
         ├── components/       # Onboarding, Room, PTTButton, MicButton
         ├── hooks/useRoom.ts  # Stato stanza reattivo (useSyncExternalStore)
         └── lib/
+            ├── holdToTalk.ts # Gesto push-to-talk con "scorri per annullare"
             ├── roomClient.ts # WebSocket, cattura/riproduzione PCM, half-duplex
             ├── pcm.ts        # Conversioni PCM16 ↔ ArrayBuffer (frame binari)
             ├── languages.ts  # Elenco lingue + rilevamento da navigator.language
@@ -77,12 +78,13 @@ babyl/
 - Scelta in onboarding accanto alla modalità stanza: si indicano **due lingue** (lato A e lato B) invece della sola lingua d'ascolto. La modalità stanza multi-dispositivo resta identica e invariata.
 - Le due persone parlano **a turno** sullo stesso dispositivo: si tiene premuto il PTT, si parla nella lingua del lato attivo e — al rilascio — la traduzione esce **a voce alta dallo stesso telefono**. Il pulsante **⇄ Inverti i lati** scambia sorgente e destinazione per il turno successivo.
 - **Riuso dell'architettura**: è una stanza privata di un solo peer; il server traduce sorgente→destinazione e rimanda l'audio al mittente. La tempistica è forzata a **consecutiva** (voce tradotta al rilascio, quando il microfono è già chiuso) così non si innesca il loop acustico mic↔altoparlante.
+- **Annulla e interrompi (risparmio di token)**: mentre parli puoi **scorrere via** dal microfono (o premere `Esc` su desktop) per **scartare l'enunciato senza tradurlo** — utile se l'audio si sporca (l'interlocutore parla sopra) e vuoi rifarlo pulito. Poiché in consecutiva la traduzione parte solo al rilascio, l'annullamento svuota il buffer prima di ogni generazione: zero token spesi. Quando la voce tradotta è in riproduzione, il pulsante **⏹ Interrompi** la ferma subito e annulla anche la generazione lato motore (`response.cancel`), così non paghi i token dell'audio che non ti serve ascoltare.
 - Il rilevamento automatico della lingua è un raffinamento successivo: oggi il lato attivo si sceglie col toggle (deterministico, nessun errore su frasi brevi).
 
 **Modalità evento (conferenza + Q&A)**
 - Pensata per **fiere, convention ed eventi pubblici** con platea che parla lingue diverse: un **relatore** parla dal microfono dell'app e **tutti ascoltano nella propria lingua**, tradotti in tempo reale.
 - Si crea dall'onboarding scegliendo la scheda **Evento** (chi la crea è il relatore); il pubblico entra dal **QR/link** condiviso, che porta `?event=1`, come **ascoltatore col microfono disabilitato** (ascolto puro, nessun `getUserMedia` finché non serve).
-- **Auricolari obbligatori**: prima di entrare, un gate con invito animato chiede conferma di indossarli. I browser non espongono un modo affidabile per rilevare gli auricolari via hardware, quindi è un'**autodichiarazione** (conferma esplicita) — serve a evitare fischi e rientri quando l'audio tradotto potrebbe uscire dagli altoparlanti in sala.
+- **Cuffie/auricolari obbligatori**: prima di entrare, un gate con invito animato (icona di cuffie) chiede conferma di indossare cuffie o auricolari. I browser non espongono un modo affidabile per rilevarli via hardware, quindi è un'**autodichiarazione** (conferma esplicita) — serve a evitare fischi e rientri quando l'audio tradotto potrebbe uscire dagli altoparlanti in sala.
 - **Q&A con alzata di mano**: lo spettatore **alza la mano**, il relatore la vede nella coda *Richieste di intervento* e **concede la parola**. Al beneficiario una voce sintetizzata **sul dispositivo** (Web Speech, nella sua lingua — gratuita, offline) annuncia *«microfono abilitato»*, il microfono si attiva e può intervenire nella **propria lingua**, arrivando **tradotto a tutti**. Il relatore può **ritirare la parola** in ogni momento (chiudendo anche il canale se il pubblico sta parlando).
 - **Il server resta l'unica autorità sul canale**: in modalità evento il pubblico ottiene il lock PTT **solo** se ha la parola concessa; altrimenti la richiesta è negata (`ptt-denied` con `reason: "not-granted"`). Riusa l'instradamento di traduzione esistente: nessuna nuova meccanica audio, solo ruoli e controllo del turno sopra il PTT half-duplex.
 

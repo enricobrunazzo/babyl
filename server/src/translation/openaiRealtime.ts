@@ -163,6 +163,10 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       },
     });
 
+    // Vero mentre il motore sta generando una risposta (tra response.created e
+    // response.done): guardia per non inviare response.cancel a vuoto.
+    let responseActive = false;
+
     ws.on("message", (raw) => {
       let event: { type?: string; [key: string]: unknown };
 
@@ -173,6 +177,19 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       }
 
       switch (event.type) {
+        // Traccia se una risposta è in generazione, così cancelResponse() invia
+        // response.cancel solo quando c'è davvero qualcosa da annullare (un
+        // response.cancel a vuoto verrebbe segnalato come errore dal motore).
+        case "response.created": {
+          responseActive = true;
+          break;
+        }
+        case "response.done":
+        case "response.cancelled": {
+          responseActive = false;
+          break;
+        }
+
         case "response.output_audio.delta":
         case "response.audio.delta": {
           const delta = typeof event.delta === "string" ? event.delta : "";
@@ -240,6 +257,24 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
           type: "response.create",
           response: {},
         });
+      },
+
+      discard() {
+        // Enunciato annullato: butta l'audio accumulato senza tradurlo. In
+        // consecutiva non è ancora partita alcuna generazione, quindi qui non
+        // si spende nulla; con VAD annulla comunque una risposta eventualmente
+        // in corso sull'ultimo segmento.
+        if (!buffered) return;
+        buffered = false;
+        send({ type: "input_audio_buffer.clear" });
+        if (responseActive) send({ type: "response.cancel" });
+      },
+
+      cancelResponse() {
+        // Interruzione: ferma la generazione in corso così il motore smette di
+        // produrre l'audio residuo (token risparmiati).
+        if (!responseActive) return;
+        send({ type: "response.cancel" });
       },
 
       close() {

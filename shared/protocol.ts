@@ -82,8 +82,20 @@ export type ClientMessage =
       /** Ruolo richiesto (default "speaker"). In evento il pubblico usa "audience". */
       role?: PeerRole;
     }
-  | { type: "ptt"; action: "request" | "release" }
+  /**
+   * Push-to-Talk. "cancel" rilascia il canale scartando l'audio dell'enunciato
+   * senza tradurlo (buffer d'ingresso svuotato): utile per rifare un enunciato
+   * sporcato — es. in single-device se qualcuno parla sopra — senza sprecare
+   * token, perché in consecutiva la traduzione parte solo al "release".
+   */
+  | { type: "ptt"; action: "request" | "release" | "cancel" }
   | { type: "update-lang"; lang: string }
+  /**
+   * Interrompe la traduzione in corso di riproduzione. In single-device annulla
+   * anche la generazione lato motore (response.cancel): l'utente non deve
+   * ascoltare fino in fondo e i token della parte non generata non si sprecano.
+   */
+  | { type: "stop-translation" }
   /** Cambia la tempistica della traduzione per l'intera stanza. */
   | { type: "set-timing"; timing: TranslationTiming }
   /** Evento/Q&A: il pubblico alza o abbassa la mano per chiedere di parlare. */

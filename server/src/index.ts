@@ -163,7 +163,14 @@ function handleMessage(
       const room = session.roomId ? rooms.get(session.roomId) : null;
       if (!room) return;
       if (message.action === "request") room.requestLock(session.peerId);
+      else if (message.action === "cancel") room.cancelLock(session.peerId);
       else room.releaseLock(session.peerId);
+      break;
+    }
+    case "stop-translation": {
+      const room = session.roomId ? rooms.get(session.roomId) : null;
+      if (!room) return;
+      room.stopTranslation(session.peerId);
       break;
     }
     case "raise-hand": {
