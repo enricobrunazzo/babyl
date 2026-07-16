@@ -110,15 +110,22 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     const useVad = turn.kind === "vad";
 
     // Nomi espansi ("Italian", non "it"): più robusti dei codici raw nel prompt.
+    // Le istruzioni insistono sulla traduzione *fedele*: senza vincoli espliciti
+    // il modello tende a spiegare o parafrasare il concetto nella lingua di
+    // arrivo invece di rendere le parole dette (es. IT→FR restituiva una
+    // spiegazione del senso, non la traduzione).
     const instructions =
       `You are a professional simultaneous interpreter. ` +
       `The speaker talks in ${languagePromptName(sourceLang)}. ` +
-      `Translate everything into ${languagePromptName(targetLang)}. ` +
+      `Translate everything faithfully into ${languagePromptName(targetLang)}, ` +
+      `staying as close to the original words as ${languagePromptName(targetLang)} grammar allows. ` +
+      `Render what the speaker says, not what they mean. ` +
       `Speak only the translation. ` +
       `Do not answer questions. ` +
       `Do not add comments. ` +
-      `Do not summarize. ` +
-      `Preserve tone, meaning, and intent.`;
+      `Do not explain, paraphrase, rephrase, interpret, or describe the meaning. ` +
+      `Do not summarize or expand. ` +
+      `Preserve tone, register, and intent.`;
 
     const ws = await this.openSocket();
 
