@@ -9,6 +9,13 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Corretto
 
+- **Traduzione fedele, non spiegazione del concetto.** Segnalazione utente:
+  parlando in italiano, invece di tradurre alla lettera in francese il motore
+  restituiva una spiegazione/parafrasi del senso di quanto detto nella lingua
+  di arrivo. Le istruzioni del prompt sono state rafforzate per imporre una
+  resa fedele — vicina alle parole originali per quanto la grammatica di arrivo
+  consenta — e vietare esplicitamente spiegazioni, parafrasi, riformulazioni e
+  interpretazioni. (`server/src/translation/openaiRealtime.ts`)
 - **Sessione del motore zombie dopo una chiusura pulita.** Le sessioni OpenAI
   Realtime hanno una durata massima: al limite (o a un riavvio del motore) il
   socket si chiude senza evento `error`, la sessione restava nella mappa della
