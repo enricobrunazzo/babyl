@@ -341,7 +341,7 @@ main {
   padding: 12px 14px;
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid var(--talking);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   color: var(--talking);
   font-size: 0.85rem;
 }
@@ -363,14 +363,24 @@ main {
   appearance: none;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   color: var(--text);
   font-size: 0.95rem;
-  padding: 8px 10px;
+  font-family: inherit;
+  padding: 8px 34px 8px 12px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field-inline select:hover {
+  border-color: var(--border-strong);
 }
 
 .field-inline select:focus {
   border-color: var(--accent);
+  box-shadow: var(--ring);
 }
 
 .field-help {
@@ -399,22 +409,31 @@ main {
   flex-shrink: 0;
   padding: 0 16px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: var(--surface);
   color: var(--text);
   font-size: 0.95rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 .share-new-room {
   width: 100%;
   padding: 12px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
   background: none;
   color: var(--text);
   font-size: 0.95rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.share-new-room:hover {
+  background: var(--surface);
+  border-color: var(--accent);
 }
 
 .share-button {
@@ -475,16 +494,20 @@ main {
 .qr-code {
   width: 220px;
   height: 220px;
-  border-radius: 12px;
+  border-radius: var(--r-md);
+  padding: 10px;
+  background: #ffffff;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
 }
 
 .share-url {
   width: 100%;
-  padding: 10px;
+  padding: 10px 12px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: 0.8rem;
+  border-radius: var(--r-sm);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.78rem;
   color: var(--text-dim);
   word-break: break-all;
 }
@@ -502,20 +525,29 @@ main {
 }
 
 .share-close {
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
   background: none;
   border: none;
   color: var(--text-dim);
   font-size: 0.9rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.share-close:hover {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .mode-switch {
   display: flex;
-  gap: 8px;
-  padding: 4px;
+  gap: 6px;
+  padding: 5px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
 }
 
 .mode-option {
@@ -642,7 +674,7 @@ main {
   padding: 8px 14px;
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid var(--talking);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   color: var(--talking);
   font-size: 0.85rem;
   text-align: center;
@@ -688,10 +720,10 @@ main {
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
   margin: 12px 0;
-  padding: 12px;
-  background: var(--surface);
+  padding: 14px;
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   font-variant-numeric: tabular-nums;
 }
 
@@ -733,10 +765,17 @@ main {
 .leave-button {
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   color: var(--text-dim);
   cursor: pointer;
   padding: 8px 16px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.leave-button:hover {
+  color: var(--text);
 }
 
 .participants {
@@ -1094,22 +1133,34 @@ main {
 .install-cta {
   padding: 8px 14px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: var(--accent);
   color: #ffffff;
   font-weight: 600;
   font-size: 0.85rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.install-cta:hover {
+  background: var(--accent-hover);
 }
 
 .install-dismiss {
   padding: 4px 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-dim);
   font-size: 0.8rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.install-dismiss:hover {
+  color: var(--text);
 }
 
 /* --- Modalità evento (conferenza + Q&A) --- */
@@ -1151,15 +1202,20 @@ main {
   width: 100%;
   max-width: 420px;
   margin: 0 auto;
-  padding: 14px 16px;
-  background: var(--surface);
+  padding: 16px;
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
 }
 
 .hands-queue h3 {
-  margin: 0 0 10px;
-  font-size: 0.95rem;
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
 .floor-active {
@@ -1167,10 +1223,10 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   margin-bottom: 10px;
-  border-radius: 10px;
-  background: rgba(139, 92, 246, 0.15);
+  border-radius: var(--r-sm);
+  background: var(--accent-weak);
   border: 1px solid var(--accent);
   font-size: 0.9rem;
 }
@@ -1193,7 +1249,11 @@ main {
 .hands-list li {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
 }
 
 .hands-list .participant-name {
@@ -1202,17 +1262,29 @@ main {
 
 .grant-floor,
 .revoke-floor {
-  padding: 6px 12px;
+  padding: 7px 14px;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   font-size: 0.85rem;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
+  transition: filter 0.15s ease, transform 0.08s ease;
+}
+
+.grant-floor:hover,
+.revoke-floor:hover {
+  filter: brightness(1.1);
+}
+
+.grant-floor:active,
+.revoke-floor:active {
+  transform: translateY(1px);
 }
 
 .grant-floor {
   background: var(--free);
-  color: #000;
+  color: #05130a;
 }
 
 .revoke-floor {
