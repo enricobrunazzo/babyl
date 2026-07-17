@@ -161,30 +161,34 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
             {statusLabel(t, state.status)}
             {connected && ` · ${t.participantCount(participants.length)}`}
           </p>
-          {connected && isEvent && (
-            <p className={`event-role-badge ${isSpeaker ? "speaker" : "audience"}`}>
-              {isSpeaker ? (
-                <>
-                  <MicIcon size={14} /> {ev.badgeSpeaker}
-                </>
-              ) : (
-                <>
-                  <HeadphonesIcon size={14} /> {ev.badgeAudience}
-                </>
-              )}
-            </p>
-          )}
           {connected && (
-            <p
-              className={`translation-badge ${state.translation.enabled ? "on" : "off"}`}
-            >
-              {state.translation.enabled ? t.translationOn : t.translationOff}
-            </p>
-          )}
-          {connected && !isSolo && selfLanguage && (
-            <p className="language-badge">
-              {t.listeningIn} {selfLanguage.flag} {selfLanguage.nativeName}
-            </p>
+            <div className="badge-row">
+              {isEvent && (
+                <p
+                  className={`event-role-badge ${isSpeaker ? "speaker" : "audience"}`}
+                >
+                  {isSpeaker ? (
+                    <>
+                      <MicIcon size={14} /> {ev.badgeSpeaker}
+                    </>
+                  ) : (
+                    <>
+                      <HeadphonesIcon size={14} /> {ev.badgeAudience}
+                    </>
+                  )}
+                </p>
+              )}
+              <p
+                className={`translation-badge ${state.translation.enabled ? "on" : "off"}`}
+              >
+                {state.translation.enabled ? t.translationOn : t.translationOff}
+              </p>
+              {!isSolo && selfLanguage && (
+                <p className="language-badge">
+                  {t.listeningIn} {selfLanguage.flag} {selfLanguage.nativeName}
+                </p>
+              )}
+            </div>
           )}
           {connected && !isSolo && state.self && (
             <label className="field-inline">
