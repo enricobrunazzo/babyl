@@ -86,17 +86,21 @@ main {
 }
 
 /* ---------- Onboarding ---------- */
+/* Compatto per stare in una schermata telefono senza scorrere: spaziature,
+   logo e titolo ridotti, padding con safe-area in basso. */
 
 .onboarding {
   justify-content: center;
-  gap: 32px;
+  gap: 16px;
+  padding: 16px 20px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
 .brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
   text-align: center;
 }
 
@@ -105,26 +109,27 @@ main {
 }
 
 .brand h1 {
-  font-size: 3rem;
+  font-size: 2.25rem;
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--logo-red);
 }
 
 .brand p {
+  font-size: 0.95rem;
   color: var(--text-dim);
 }
 
 .onboarding-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 5px;
 }
 
 .field span {
@@ -139,9 +144,9 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   color: var(--text);
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-family: inherit;
-  padding: 14px 16px;
+  padding: 12px 15px;
   outline: none;
   transition:
     border-color 0.15s ease,
@@ -243,15 +248,29 @@ main {
 
 .room-header {
   display: flex;
+  flex-direction: column;
+}
+
+/* Riga superiore: titolo a sinistra, azioni (condividi/esci) a destra, sempre
+   visibili. Il resto (stato, chip, select) sta sotto a tutta larghezza. */
+.room-topbar {
+  display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
+/* Il titolo si restringe e va a capo, così le azioni non escono mai fuori. */
+.room-topbar h2 {
+  flex: 1;
+  min-width: 0;
+}
+
 .room-header h2 {
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   font-weight: 700;
   text-transform: capitalize;
+  overflow-wrap: anywhere;
 }
 
 .status {
@@ -351,7 +370,9 @@ main {
   flex-direction: column;
   gap: 4px;
   margin-top: 8px;
+  width: 100%;
   max-width: 320px;
+  min-width: 0;
 }
 
 .field-inline > span {
@@ -392,6 +413,8 @@ main {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   padding-top: 4px;
 }
 

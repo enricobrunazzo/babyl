@@ -161,7 +161,7 @@ export function Onboarding({
     return (
       <main className="onboarding" dir={t.dir}>
         <header className="brand">
-          <BabylMark size={64} className="brand-mark" />
+          <BabylMark size={52} className="brand-mark" />
           <h1>babyl</h1>
           <p>{ev.audienceJoinHint}</p>
         </header>
@@ -217,7 +217,7 @@ export function Onboarding({
     return (
       <main className="onboarding" dir={t.dir}>
         <header className="brand">
-          <BabylMark size={64} className="brand-mark" />
+          <BabylMark size={52} className="brand-mark" />
           <h1>babyl</h1>
           <p>{t.tagline}</p>
         </header>
@@ -266,7 +266,7 @@ export function Onboarding({
   return (
     <main className="onboarding" dir={t.dir}>
       <header className="brand">
-        <BabylMark size={64} className="brand-mark" />
+        <BabylMark size={52} className="brand-mark" />
         <h1>babyl</h1>
         <p>{t.tagline}</p>
       </header>

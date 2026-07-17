@@ -155,9 +155,24 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   return (
     <main className="room" dir={t.dir} data-audio-frames={state.audioFramesReceived}>
       <header className="room-header">
-        <div>
+        <div className="room-topbar">
           <h2>{isSolo ? t.soloTitle : isEvent ? `${ev.eventTitle} · ${roomId}` : roomId}</h2>
-          <p className={`status status-${state.status}`}>
+          <div className="header-actions">
+            {!isSolo && !isAudience && (
+              <button
+                type="button"
+                className="share-button"
+                onClick={() => setShowShare(true)}
+              >
+                {t.share}
+              </button>
+            )}
+            <button type="button" className="leave-button" onClick={onLeave}>
+              {t.leave}
+            </button>
+          </div>
+        </div>
+        <p className={`status status-${state.status}`}>
             {statusLabel(t, state.status)}
             {connected && ` · ${t.participantCount(participants.length)}`}
           </p>
@@ -223,21 +238,6 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               {timing && <small className="field-help">{timing.hint}</small>}
             </label>
           )}
-        </div>
-        <div className="header-actions">
-          {!isSolo && !isAudience && (
-            <button
-              type="button"
-              className="share-button"
-              onClick={() => setShowShare(true)}
-            >
-              {t.share}
-            </button>
-          )}
-          <button type="button" className="leave-button" onClick={onLeave}>
-            {t.leave}
-          </button>
-        </div>
       </header>
 
       {showShare && !isSolo && (
