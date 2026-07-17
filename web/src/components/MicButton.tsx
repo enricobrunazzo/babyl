@@ -1,5 +1,5 @@
 import { useHoldToTalk } from "../lib/holdToTalk";
-import { MicIcon } from "./icons";
+import { CloseIcon, MicIcon } from "./icons";
 
 interface Props {
   flag: string;
@@ -56,7 +56,7 @@ export function MicButton({
       onContextMenu={(event) => event.preventDefault()}
     >
       <span className="mic-button-flag" aria-hidden="true">
-        {hold.armed ? "✕" : flag}
+        {hold.armed ? <CloseIcon size={30} /> : flag}
       </span>
       <MicIcon size={40} className="mic-button-icon" />
       <span className="mic-button-name">{hold.armed ? cancelLabel : name}</span>

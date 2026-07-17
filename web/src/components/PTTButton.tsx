@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { PttState } from "../lib/roomClient";
 import { useHoldToTalk } from "../lib/holdToTalk";
-import { LockIcon, MicIcon, StopIcon } from "./icons";
+import { ChevronUpIcon, LockIcon, MicIcon, StopIcon } from "./icons";
 
 export interface PttLabels {
   free: string;
@@ -64,12 +64,13 @@ export function PTTButton({
 }: Props) {
   // Blocco a mani libere: il microfono resta aperto dopo il rilascio.
   const [locked, setLocked] = useState(false);
-  const { armed, lockArmed, press, move, release, cancel, reset } = useHoldToTalk({
-    onPress,
-    onRelease,
-    onCancel,
-    onLock: lockable ? () => setLocked(true) : undefined,
-  });
+  const { armed, lockArmed, lockProgress, press, move, release, cancel, reset } =
+    useHoldToTalk({
+      onPress,
+      onRelease,
+      onCancel,
+      onLock: lockable ? () => setLocked(true) : undefined,
+    });
   const stateLabel: Record<PttState, string> = {
     free: labels.free,
     talking: labels.talking,
@@ -121,60 +122,72 @@ export function PTTButton({
 
   const blocked = disabled || state === "blocked";
   const armedNow = armed && !locked;
+  // Lo slide-to-lock compare mentre si trasmette (non annullando, non bloccati).
+  const showSlider = lockable && !locked && !armedNow && state === "talking";
 
   return (
     <div className="ptt">
-      <button
-        type="button"
-        className={`ptt-button ptt-${state}${armedNow ? " armed" : ""}${
-          lockArmed ? " lock-armed" : ""
-        }${locked ? " locked" : ""}`}
-        disabled={blocked && !locked}
-        aria-pressed={state === "talking"}
-        aria-label={locked ? labels.lockedStop : stateLabel[state]}
-        onPointerDown={(event) => {
-          event.preventDefault();
-          event.currentTarget.setPointerCapture(event.pointerId);
-          // Se già bloccato a mani libere, un tocco ferma la trasmissione.
-          if (locked) {
-            stopLock();
-            return;
-          }
-          if (!blocked) press(event.clientX, event.clientY);
-        }}
-        onPointerMove={(event) => {
-          if (!locked) move(event.clientX, event.clientY);
-        }}
-        onPointerUp={() => {
-          if (!locked) release();
-        }}
-        onPointerCancel={() => {
-          if (!locked) release();
-        }}
-        onContextMenu={(event) => event.preventDefault()}
-      >
-        <span className="ptt-icon" aria-hidden="true">
-          {locked ? (
-            <StopIcon size={60} />
-          ) : state === "blocked" ? (
-            <LockIcon size={64} />
-          ) : (
-            <MicIcon size={64} />
-          )}
-        </span>
-        {/* Segnale del gesto di blocco che appare scorrendo verso l'alto. */}
-        {lockable && !locked && (
-          <span
-            className={`ptt-lock-cue${lockArmed ? " ready" : ""}`}
+      <div className="ptt-stage">
+        {showSlider && (
+          <div
+            className={`lock-slider${lockArmed ? " armed" : ""}`}
+            style={{ "--p": lockProgress } as CSSProperties}
             aria-hidden="true"
           >
-            <LockIcon size={18} />
-          </span>
+            <span className="lock-slider-target">
+              <LockIcon size={18} />
+            </span>
+            <span className="lock-slider-fill" />
+            <span className="lock-slider-handle">
+              <ChevronUpIcon size={20} />
+            </span>
+          </div>
         )}
-      </button>
+        <button
+          type="button"
+          className={`ptt-button ptt-${state}${armedNow ? " armed" : ""}${
+            lockArmed ? " lock-armed" : ""
+          }${locked ? " locked" : ""}`}
+          disabled={blocked && !locked}
+          aria-pressed={state === "talking"}
+          aria-label={locked ? labels.lockedStop : stateLabel[state]}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            // Se già bloccato a mani libere, un tocco ferma la trasmissione.
+            if (locked) {
+              stopLock();
+              return;
+            }
+            if (!blocked) press(event.clientX, event.clientY);
+          }}
+          onPointerMove={(event) => {
+            if (!locked) move(event.clientX, event.clientY);
+          }}
+          onPointerUp={() => {
+            if (!locked) release();
+          }}
+          onPointerCancel={() => {
+            if (!locked) release();
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <span className="ptt-icon" aria-hidden="true">
+            {locked ? (
+              <StopIcon size={60} />
+            ) : state === "blocked" ? (
+              <LockIcon size={64} />
+            ) : (
+              <MicIcon size={64} />
+            )}
+          </span>
+        </button>
+      </div>
       <p className="ptt-label" role="status">
         {locked ? (
-          <em className="ptt-locked-hint">🔒 {labels.lockedStop}</em>
+          <em className="ptt-locked-hint">
+            <LockIcon size={15} className="hint-ico" /> {labels.lockedStop}
+          </em>
         ) : lockArmed ? (
           <em className="ptt-lock-hint">{labels.lockHint}</em>
         ) : armed ? (

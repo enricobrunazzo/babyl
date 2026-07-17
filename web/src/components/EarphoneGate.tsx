@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { strings, eventStrings } from "../lib/i18n";
+import { HeadphonesIcon } from "./icons";
 
 interface Props {
   /** Lingua del partecipante, per il testo del gate. */
@@ -29,7 +30,9 @@ export function EarphoneGate({ lang, onReady, onBack }: Props) {
   return (
     <main className="earphone-gate" dir={t.dir}>
       <div className="earphone-animation" aria-hidden="true">
-        <span className="earphone-emoji">🎧</span>
+        <span className="earphone-emoji">
+          <HeadphonesIcon size={64} />
+        </span>
         <span className="earphone-wave earphone-wave-1" />
         <span className="earphone-wave earphone-wave-2" />
         <span className="earphone-wave earphone-wave-3" />

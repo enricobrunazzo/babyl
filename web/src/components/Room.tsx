@@ -7,6 +7,13 @@ import type { Profile } from "./Onboarding";
 import { MicButton } from "./MicButton";
 import { PTTButton } from "./PTTButton";
 import { QRCode } from "./QRCode";
+import {
+  HandIcon,
+  HeadphonesIcon,
+  MicIcon,
+  SpeakerWaveIcon,
+  StopIcon,
+} from "./icons";
 
 /** Preset di tempistica offerti in stanza (condivisi da tutti i partecipanti). */
 function timingOptions(
@@ -156,7 +163,15 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           </p>
           {connected && isEvent && (
             <p className={`event-role-badge ${isSpeaker ? "speaker" : "audience"}`}>
-              {isSpeaker ? `🎤 ${ev.badgeSpeaker}` : `🎧 ${ev.badgeAudience}`}
+              {isSpeaker ? (
+                <>
+                  <MicIcon size={14} /> {ev.badgeSpeaker}
+                </>
+              ) : (
+                <>
+                  <HeadphonesIcon size={14} /> {ev.badgeAudience}
+                </>
+              )}
             </p>
           )}
           {connected && (
@@ -286,7 +301,9 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               <span className="participant-name">
                 {peer.nickname}
                 {peer.id === state.self?.id && ` ${t.you}`}
-                {peer.role === "speaker" && isEvent && " 🎤"}
+                {peer.role === "speaker" && isEvent && (
+                  <MicIcon size={13} className="name-ico" />
+                )}
               </span>
               {lang && (
                 <span className="participant-lang">
@@ -327,7 +344,9 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
                     <span className="participant-flag" aria-hidden="true">
                       {lang?.flag ?? "🌐"}
                     </span>
-                    <span className="participant-name">✋ {peer.nickname}</span>
+                    <span className="participant-name">
+                      <HandIcon size={15} className="name-ico" /> {peer.nickname}
+                    </span>
                     <button
                       type="button"
                       className="grant-floor"
@@ -396,7 +415,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
         <>
           {hasFloor && (
             <p className="mic-enabled-notice" role="status">
-              🎙️ {ev.micEnabledNotice}
+              <MicIcon size={16} /> {ev.micEnabledNotice}
             </p>
           )}
           {isAudience && state.micGrantDenied && (
@@ -434,7 +453,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           senza avviso due persone finirebbero per parlare sopra la voce. */}
       {!isSolo && state.playing && state.channel.speakerId === null && (
         <p className="translation-playing" role="status">
-          🔊 {t.translationPlaying}
+<SpeakerWaveIcon size={16} /> {t.translationPlaying}
         </p>
       )}
 
@@ -444,7 +463,7 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
           className="interrupt-button"
           onClick={() => client.interruptTranslation()}
         >
-          ⏹ {t.interrupt}
+<StopIcon size={16} /> {t.interrupt}
         </button>
       )}
 

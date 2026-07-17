@@ -591,6 +591,9 @@ main {
 /* Canale libero ma voce tradotta ancora in riproduzione. */
 .translation-playing {
   align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 4px 0 0;
   color: var(--text-dim);
   font-size: 0.9rem;
@@ -600,15 +603,20 @@ main {
 /* Interrompi la traduzione in riproduzione (ferma audio e generazione). */
 .interrupt-button {
   align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 4px;
   padding: 10px 22px;
   border: 1px solid var(--talking);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   background: transparent;
   color: var(--talking);
   font-size: 0.95rem;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease;
 }
 
 .interrupt-button:hover {
@@ -711,6 +719,14 @@ main {
 
 .participant-name {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.name-ico {
+  flex: none;
+  color: var(--text-dim);
 }
 
 .speaking-dot {
@@ -816,32 +832,102 @@ main {
 }
 
 .ptt-locked-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--talking);
   font-style: normal;
   font-weight: 600;
 }
 
-/* Indizio del gesto di blocco: piccolo lucchetto in cima al pulsante che
-   sale/brilla man mano che lo scorrimento verso l'alto arma il blocco. */
-.ptt-lock-cue {
+/* Contenitore del pulsante: contesto di posizionamento per lo slide-to-lock. */
+.ptt-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Slide-to-lock: binario che compare sopra il pulsante mentre si trasmette.
+   Si scorre il dito verso l'alto (--p va 0→1) fino al lucchetto per bloccare. */
+.lock-slider {
   position: absolute;
-  top: 12px;
+  bottom: calc(100% + 12px);
   left: 50%;
   transform: translateX(-50%);
-  display: inline-flex;
-  color: rgba(255, 255, 255, 0.75);
-  opacity: 0;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 54px;
+  height: 152px;
+  padding: 11px 0;
+  border-radius: var(--r-pill);
+  background: rgba(18, 18, 22, 0.9);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
   pointer-events: none;
+  animation: install-in 0.18s ease-out;
 }
 
-.ptt-talking .ptt-lock-cue {
-  opacity: 0.55;
+.lock-slider-target {
+  display: inline-flex;
+  z-index: 2;
+  color: var(--text-dim);
+  transition: color 0.15s ease, transform 0.15s ease;
 }
 
-.ptt-lock-cue.ready {
-  opacity: 1;
-  transform: translateX(-50%) translateY(-4px) scale(1.15);
+/* Riempimento accento che sale con il progresso dello scorrimento. */
+.lock-slider-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--p, 0) * 100%);
+  background: linear-gradient(to top, var(--accent-press), var(--accent));
+  opacity: 0.32;
+  transition: height 0.06s linear;
+}
+
+/* Maniglia che segue il dito: sale di ~96px sul percorso completo. */
+.lock-slider-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--talking);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  transform: translateY(calc(var(--p, 0) * -96px));
+  transition: transform 0.06s linear, background 0.15s ease;
+}
+
+.lock-slider.armed {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak), var(--shadow-1);
+}
+
+.lock-slider.armed .lock-slider-target {
+  color: var(--accent-hover);
+  transform: scale(1.18);
+}
+
+.lock-slider.armed .lock-slider-handle {
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lock-slider,
+  .lock-slider-fill,
+  .lock-slider-handle {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* Sta per bloccare (scorri su): il pulsante si "arma" con un alone accento. */
@@ -963,15 +1049,21 @@ main {
 /* --- Modalità evento (conferenza + Q&A) --- */
 
 .event-role-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin: 6px 0 0;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
   font-size: 0.8rem;
   font-weight: 600;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text);
+}
+
+.event-role-badge svg {
+  flex: none;
 }
 
 .event-role-badge.speaker {
@@ -1113,6 +1205,10 @@ main {
 }
 
 .mic-enabled-notice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   text-align: center;
   color: var(--free);
   font-weight: 600;
@@ -1153,6 +1249,8 @@ main {
 }
 
 .earphone-emoji {
+  display: inline-flex;
+  color: var(--accent);
   font-size: 4rem;
   animation: earphone-bob 1.8s ease-in-out infinite;
 }

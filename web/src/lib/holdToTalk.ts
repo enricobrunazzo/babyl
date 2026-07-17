@@ -13,13 +13,15 @@ const CANCEL_THRESHOLD_PX = 80;
  * bloccare" dei messaggi vocali. Utile quando si parla a lungo (relatore,
  * stanza) senza tenere premuto. Attivo solo se `onLock` è fornito.
  */
-const LOCK_THRESHOLD_PX = 64;
+const LOCK_THRESHOLD_PX = 96;
 
 export interface HoldToTalk {
   /** true quando lo scorrimento ha armato l'annullamento (rilascia per annullare). */
   armed: boolean;
   /** true quando lo scorrimento verso l'alto ha armato il blocco (rilascia per bloccare). */
   lockArmed: boolean;
+  /** Avanzamento dello slide-to-lock, 0→1 (per animare la maniglia). */
+  lockProgress: number;
   /** Avvia il gesto (pressione) a partire dalle coordinate del puntatore. */
   press(x: number, y: number): void;
   /** Aggiorna gli stati "armato"/"blocco armato" in base allo spostamento. */
@@ -54,6 +56,7 @@ export function useHoldToTalk(opts: {
   const lockArmedRef = useRef(false);
   const [armed, setArmed] = useState(false);
   const [lockArmed, setLockArmed] = useState(false);
+  const [lockProgress, setLockProgress] = useState(0);
 
   const setArmedValue = useCallback((value: boolean) => {
     if (armedRef.current === value) return;
@@ -74,6 +77,7 @@ export function useHoldToTalk(opts: {
       origin.current = { x, y };
       setArmedValue(false);
       setLockArmedValue(false);
+      setLockProgress(0);
       onPress();
     },
     [onPress, setArmedValue, setLockArmedValue],
@@ -84,17 +88,21 @@ export function useHoldToTalk(opts: {
       if (!holding.current) return;
       const dx = x - origin.current.x;
       const dy = y - origin.current.y;
-      // Precedenza al blocco: uno scorrimento chiaramente verso l'alto blocca
-      // (e non annulla), così i due gesti non si confondono.
-      if (onLock && dy <= -LOCK_THRESHOLD_PX && Math.abs(dy) >= Math.abs(dx)) {
-        setLockArmedValue(true);
+      // Precedenza al blocco: uno scorrimento verso l'alto (prevalentemente
+      // verticale) alimenta lo slide-to-lock; laterale/basso arma l'annullamento.
+      if (onLock && dy < 0 && Math.abs(dy) >= Math.abs(dx)) {
+        const progress = Math.min(1, -dy / LOCK_THRESHOLD_PX);
+        setLockProgress(progress);
+        setLockArmedValue(progress >= 1);
         setArmedValue(false);
       } else if (onCancel && Math.hypot(dx, dy) > CANCEL_THRESHOLD_PX) {
         setArmedValue(true);
         setLockArmedValue(false);
+        setLockProgress(0);
       } else {
         setArmedValue(false);
         setLockArmedValue(false);
+        setLockProgress(0);
       }
     },
     [onCancel, onLock, setArmedValue, setLockArmedValue],
@@ -107,6 +115,7 @@ export function useHoldToTalk(opts: {
     const cancel = armedRef.current && Boolean(onCancel);
     setArmedValue(false);
     setLockArmedValue(false);
+    setLockProgress(0);
     if (lock) onLock!();
     else if (cancel) onCancel!();
     else onRelease();
@@ -117,6 +126,7 @@ export function useHoldToTalk(opts: {
     holding.current = false;
     setArmedValue(false);
     setLockArmedValue(false);
+    setLockProgress(0);
     onCancel();
   }, [onCancel, setArmedValue, setLockArmedValue]);
 
@@ -124,7 +134,8 @@ export function useHoldToTalk(opts: {
     holding.current = false;
     setArmedValue(false);
     setLockArmedValue(false);
+    setLockProgress(0);
   }, [setArmedValue, setLockArmedValue]);
 
-  return { armed, lockArmed, press, move, release, cancel, reset };
+  return { armed, lockArmed, lockProgress, press, move, release, cancel, reset };
 }

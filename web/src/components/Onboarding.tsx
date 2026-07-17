@@ -3,6 +3,7 @@ import { detectLanguage, languageByCode, LANGUAGES } from "../lib/languages";
 import { strings, eventStrings } from "../lib/i18n";
 import { newRoomId } from "../lib/roomName";
 import { BabylMark } from "./BabylLogo";
+import { HeadphonesIcon, RoomIcon } from "./icons";
 import type { PeerRole } from "../../../shared/protocol";
 
 export interface Profile {
@@ -171,7 +172,9 @@ export function Onboarding({
             enterAudience();
           }}
         >
-          <p className="event-role-badge">🎤 {ev.audienceJoinTitle}</p>
+          <p className="event-role-badge">
+            <HeadphonesIcon size={15} /> {ev.audienceJoinTitle}
+          </p>
           <label className="field">
             <span>{t.listenLangLabel}</span>
             <small className="field-help">{t.listenLangHelp}</small>
@@ -225,7 +228,9 @@ export function Onboarding({
             enterRoom();
           }}
         >
-          <p className="event-role-badge">🚪 {roomId}</p>
+          <p className="event-role-badge">
+            <RoomIcon size={15} /> {roomId}
+          </p>
           <label className="field">
             <span>{t.listenLangLabel}</span>
             <small className="field-help">{t.listenLangHelp}</small>
