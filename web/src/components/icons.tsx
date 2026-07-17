@@ -19,6 +19,22 @@ export function MicIcon({ size = 24, className }: IconProps) {
   );
 }
 
+/** Icona stop (quadrato arrotondato) in stile Material Design. */
+export function StopIcon({ size = 24, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="6" y="6" width="12" height="12" rx="2.5" />
+    </svg>
+  );
+}
+
 /** Icona lucchetto in stile Material Design. Colore via currentColor. */
 export function LockIcon({ size = 24, className }: IconProps) {
   return (

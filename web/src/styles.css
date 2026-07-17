@@ -3,16 +3,38 @@
 
 :root {
   color-scheme: dark;
+
+  /* Superfici e testo */
   --bg: #000000;
   --surface: #111114;
+  --surface-2: #1b1b22; /* elevata: card interattive, pannelli, hover */
   --border: #26262b;
+  --border-strong: #3a3a44;
   --text: #f4f4f5;
-  --text-dim: #9ca3af;
+  --text-dim: #a1a1aa;
+
+  /* Accento (viola) e stati del canale */
   --accent: #8b5cf6;
+  --accent-hover: #a78bfa;
+  --accent-press: #7c3aed;
+  --accent-weak: rgba(139, 92, 246, 0.16);
   --logo-red: #ff2b1a;
   --free: #22c55e;
   --talking: #ef4444;
   --blocked: #4b5563;
+
+  /* Raggi ed elevazione (stile Fluent/Material, discreta su fondo OLED) */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --ring: 0 0 0 3px var(--accent-weak);
+
+  /* Tipografia */
+  --font-sans:
+    "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -30,14 +52,28 @@ body,
 body {
   background: var(--bg);
   color: var(--text);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   overscroll-behavior: none;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* Anello di focus coerente e visibile solo da tastiera (accessibilità). */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--r-sm);
 }
 
 main {
@@ -101,16 +137,39 @@ main {
   appearance: none;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   color: var(--text);
   font-size: 1.05rem;
+  font-family: inherit;
   padding: 14px 16px;
   outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+
+.field input::placeholder {
+  color: var(--text-dim);
+}
+
+.field input:hover,
+.field select:hover {
+  border-color: var(--border-strong);
 }
 
 .field input:focus,
 .field select:focus {
   border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+/* Freccia disegnata per i menu a tendina (coerente su tutti i browser). */
+.field select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 44px;
 }
 
 .consent {
@@ -132,19 +191,35 @@ main {
 .enter-button {
   background: var(--accent);
   border: none;
-  border-radius: 14px;
+  border-radius: var(--r-md);
   color: #ffffff;
   cursor: pointer;
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  padding: 16px;
-  transition: opacity 0.15s ease;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 15px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(139, 92, 246, 0.28);
+  transition:
+    background 0.15s ease,
+    transform 0.08s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.enter-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.enter-button:active:not(:disabled) {
+  background: var(--accent-press);
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .enter-button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .disclaimer {
@@ -285,11 +360,20 @@ main {
 .share-button {
   padding: 8px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r-sm);
   background: var(--surface);
   color: var(--text);
   font-size: 0.9rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.share-button:hover,
+.room-generate:hover,
+.leave-button:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
 }
 
 .share-overlay {
@@ -311,10 +395,12 @@ main {
   width: 100%;
   max-width: 340px;
   padding: 24px;
-  background: var(--surface);
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
   text-align: center;
+  animation: install-in 0.22s ease-out;
 }
 
 .share-panel h3 {
@@ -376,17 +462,26 @@ main {
   flex: 1;
   padding: 10px;
   border: none;
-  border-radius: 9px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-dim);
   font-size: 0.9rem;
+  font-weight: 500;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.mode-option:hover:not(.active) {
+  background: var(--surface-2);
+  color: var(--text);
 }
 
 .mode-option.active {
   background: var(--accent);
-  color: #000;
+  color: #fff;
   font-weight: 600;
+  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
 }
 
 .field-error {
@@ -587,16 +682,31 @@ main {
   gap: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 16px;
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .participant.speaking {
   border-color: var(--talking);
+  background: rgba(239, 68, 68, 0.06);
 }
 
 .participant-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
   font-size: 1.2rem;
+}
+
+.participant-lang {
+  font-size: 0.8rem;
+  color: var(--text-dim);
 }
 
 .participant-name {
@@ -621,6 +731,10 @@ main {
 }
 
 .ptt-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 168px;
   height: 168px;
   border-radius: 50%;
@@ -678,10 +792,68 @@ main {
 }
 
 .ptt-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   min-height: 1.4em;
   color: var(--text-dim);
   font-size: 0.95rem;
   text-align: center;
+}
+
+/* Sottotesto discreto che invita a bloccare mentre si parla. */
+.ptt-sub-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  opacity: 0.75;
+}
+
+.ptt-lock-hint {
+  color: var(--accent-hover);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.ptt-locked-hint {
+  color: var(--talking);
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* Indizio del gesto di blocco: piccolo lucchetto in cima al pulsante che
+   sale/brilla man mano che lo scorrimento verso l'alto arma il blocco. */
+.ptt-lock-cue {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  color: rgba(255, 255, 255, 0.75);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.ptt-talking .ptt-lock-cue {
+  opacity: 0.55;
+}
+
+.ptt-lock-cue.ready {
+  opacity: 1;
+  transform: translateX(-50%) translateY(-4px) scale(1.15);
+}
+
+/* Sta per bloccare (scorri su): il pulsante si "arma" con un alone accento. */
+.ptt-button.lock-armed {
+  box-shadow: 0 0 0 4px var(--accent-weak), 0 0 60px rgba(139, 92, 246, 0.5);
+}
+
+/* Bloccato a mani libere: microfono aperto, fermo (niente pulsazione), con
+   un anello che segnala lo stato "toccami per fermare". */
+.ptt-button.locked {
+  animation: none;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3), 0 0 64px rgba(239, 68, 68, 0.5);
 }
 
 .room-error {
@@ -906,19 +1078,33 @@ main {
 }
 
 .raise-hand {
-  padding: 16px 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 15px 28px;
   border: 1px solid var(--accent);
-  border-radius: 14px;
-  background: var(--surface);
+  border-radius: var(--r-md);
+  background: var(--accent-weak);
   color: var(--text);
   font-size: 1.05rem;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+
+.raise-hand:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.24);
+}
+
+.raise-hand:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .raise-hand.raised {
   background: var(--accent);
-  color: #000;
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.4);
 }
 
 .raise-hand:disabled {

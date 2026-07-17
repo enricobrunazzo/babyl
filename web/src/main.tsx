@@ -1,5 +1,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+// Inter (variabile, self-hosted): tipografia UI pulita e professionale,
+// impacchettata nel bundle → nessuna richiesta esterna, coerente con la PWA
+// offline e col vincolo "zero download". Copre latino/cirillico/greco; per
+// CJK, arabo e devanagari si ricade sul font di sistema (Inter non li include).
+import "@fontsource-variable/inter/wght.css";
 import App from "./App";
 import "./styles.css";
 

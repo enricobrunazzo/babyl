@@ -414,6 +414,8 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
               blocked: t.pttBlocked,
               speaking: t.pttSpeaking,
               cancelHint: t.cancelHint,
+              lockHint: t.lockHint,
+              lockedStop: t.lockedStop,
             }}
             onPress={() => client.pttDown()}
             onRelease={() => client.pttUp()}
