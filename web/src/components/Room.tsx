@@ -59,10 +59,12 @@ export function Room({ roomId, profile, onLeave, onNewRoom }: Props) {
   const isEvent = profile.mode === "event";
   const [showShare, setShowShare] = useState(false);
   const [copied, setCopied] = useState(false);
-  // Il link di un evento porta ?event=1: chi lo apre entra come pubblico.
+  // Il link condiviso porta ?join=1: chi lo apre (o scansiona il QR) entra
+  // dritto in stanza con la schermata di join snella, senza il form completo.
+  // Un evento aggiunge ?event=1: chi lo apre entra come pubblico.
   const shareUrl = `${location.origin}/?room=${encodeURIComponent(roomId)}${
     isEvent ? "&event=1" : ""
-  }`;
+  }&join=1`;
 
   const copyLink = async () => {
     try {

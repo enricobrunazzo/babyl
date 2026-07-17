@@ -25,9 +25,20 @@ function eventFromUrl(): boolean {
   return new URLSearchParams(location.search).get("event") === "1";
 }
 
+/**
+ * Il link/QR condiviso porta `?join=1`: chi lo apre entra dritto nella stanza
+ * con la schermata di join snella (lingua pre-rilevata, solo nome + consenso),
+ * senza switch modalità né campo stanza. Chi crea una stanza da zero (nessun
+ * parametro) vede invece il form completo.
+ */
+function joinFromUrl(): boolean {
+  return new URLSearchParams(location.search).get("join") === "1";
+}
+
 export default function App() {
   const [roomId, setRoomId] = useState(roomFromUrl);
   const [eventJoin] = useState(eventFromUrl);
+  const [joinLink] = useState(joinFromUrl);
   // Stanza privata per la modalità single-device: l'audio torna solo al
   // dispositivo stesso, quindi non deve collidere con una stanza pubblica.
   const [soloRoom] = useState(
@@ -82,6 +93,7 @@ export default function App() {
         <Onboarding
           roomId={roomId}
           eventJoin={eventJoin}
+          joinLink={joinLink}
           onRoomChange={changeRoom}
           onEnter={setProfile}
         />

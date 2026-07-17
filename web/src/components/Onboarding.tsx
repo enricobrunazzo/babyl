@@ -57,6 +57,11 @@ interface Props {
   roomId: string;
   /** Il link portava `?event=1`: l'utente entra come pubblico di un evento. */
   eventJoin: boolean;
+  /**
+   * Il link/QR condiviso portava `?join=1`: schermata di join snella (lingua
+   * pre-rilevata, solo nome + consenso), senza switch modalità né campo stanza.
+   */
+  joinLink: boolean;
   onRoomChange: (id: string) => void;
   onEnter: (profile: Profile) => void;
 }
@@ -72,7 +77,13 @@ interface Props {
  * Modalità evento: chi apre il link con `?event=1` entra come pubblico
  * (ascolto puro); il relatore crea l'evento scegliendo la scheda "Evento".
  */
-export function Onboarding({ roomId, eventJoin, onRoomChange, onEnter }: Props) {
+export function Onboarding({
+  roomId,
+  eventJoin,
+  joinLink,
+  onRoomChange,
+  onEnter,
+}: Props) {
   const [mode, setMode] = useState<"room" | "solo" | "event">("room");
   const [lang, setLang] = useState(() => restoreLang(RESTORE_LANG, detectLanguage));
   const [langB, setLangB] = useState(() =>
@@ -180,6 +191,61 @@ export function Onboarding({ roomId, eventJoin, onRoomChange, onEnter }: Props) 
           </label>
           {consentField}
           <button type="submit" className="enter-button" disabled={!consent}>
+            {t.enter}
+          </button>
+          <p className="disclaimer">{t.disclaimer}</p>
+        </form>
+      </main>
+    );
+  }
+
+  // --- Join di una stanza da link/QR condiviso (?join=1) ---
+  // Stessa forma snella del pubblico evento, ma la persona parla (mode "room"):
+  // lingua pre-rilevata, si chiede il nome, un'unica spunta di consenso.
+  // Niente switch modalità né campo stanza: la stanza è fissata dal link.
+  if (joinLink) {
+    const canJoin = consent && nickname.trim().length > 0;
+    const enterRoom = () => {
+      if (!canJoin) return;
+      const profile: Profile = { nickname: nickname.trim(), lang, mode: "room" };
+      persistProfile(profile);
+      onEnter(profile);
+    };
+    return (
+      <main className="onboarding" dir={t.dir}>
+        <header className="brand">
+          <BabylMark size={64} className="brand-mark" />
+          <h1>babyl</h1>
+          <p>{t.tagline}</p>
+        </header>
+        <form
+          className="onboarding-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            enterRoom();
+          }}
+        >
+          <p className="event-role-badge">🚪 {roomId}</p>
+          <label className="field">
+            <span>{t.listenLangLabel}</span>
+            <small className="field-help">{t.listenLangHelp}</small>
+            {langSelect(lang, setLang, t.selectFirstLang)}
+          </label>
+          <label className="field">
+            <span>{t.nameLabel}</span>
+            <input
+              type="text"
+              name="nickname"
+              autoComplete="given-name"
+              autoFocus
+              maxLength={40}
+              placeholder={t.namePlaceholder}
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+            />
+          </label>
+          {consentField}
+          <button type="submit" className="enter-button" disabled={!canJoin}>
             {t.enter}
           </button>
           <p className="disclaimer">{t.disclaimer}</p>
