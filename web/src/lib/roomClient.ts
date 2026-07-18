@@ -9,7 +9,6 @@ import type {
   TranslationTiming,
 } from "../../../shared/protocol";
 import { floatToPcmBuffer, pcmBufferToFloat, SAMPLE_RATE } from "./pcm";
-import { eventStrings } from "./i18n";
 
 export type ConnectionStatus =
   | "idle"
@@ -314,23 +313,40 @@ export class RoomClient {
   }
 
   /**
-   * Annuncio vocale locale "microfono abilitato" nella lingua del partecipante,
-   * quando gli viene concessa la parola. Usa la sintesi vocale del dispositivo
-   * (Web Speech): gratuita, offline, nessun costo del motore di traduzione.
+   * Segnale acustico locale "pronto" quando viene concessa la parola: due brevi
+   * note ascendenti generate con Web Audio. Neutro rispetto alla lingua e più
+   * discreto della voce sintetizzata di prima. L'avviso testuale in UI resta.
    */
   private announceMicOn(): void {
-    const lang = this.state.self?.lang ?? this.opts.lang;
     try {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const utterance = new SpeechSynthesisUtterance(
-        eventStrings(lang).micOnAnnounce,
-      );
-      utterance.lang = lang;
-      synth.speak(utterance);
+      const Ctx =
+        window.AudioContext ??
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      // Riusa il contesto di riproduzione (già sbloccato); se manca ne crea uno
+      // temporaneo solo per il suono e lo chiude dopo.
+      const owned = !this.playCtx;
+      const ctx = this.playCtx ?? (Ctx ? new Ctx() : null);
+      if (!ctx) return;
+      void ctx.resume?.().catch(() => {});
+      const now = ctx.currentTime;
+      const beep = (freq: number, at: number, dur: number) => {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now + at);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + at + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + at + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + at);
+        osc.stop(now + at + dur + 0.02);
+      };
+      beep(660, 0, 0.13);
+      beep(990, 0.13, 0.18);
+      if (owned) window.setTimeout(() => void ctx.close().catch(() => {}), 600);
     } catch {
-      // Sintesi vocale non disponibile: l'avviso testuale in UI resta comunque.
+      // Audio non disponibile: l'avviso testuale in UI resta comunque.
     }
   }
 

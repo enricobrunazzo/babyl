@@ -1375,7 +1375,6 @@ export function strings(lang: string): UIStrings {
  */
 export interface EventStrings {
   /** Frase pronunciata dalla sintesi vocale quando ti viene data la parola. */
-  micOnAnnounce: string;
   // Onboarding
   modeEvent: string;
   eventCreateHint: string;
@@ -1408,7 +1407,6 @@ export interface EventStrings {
 
 const EVENT_STRINGS: Record<string, EventStrings> = {
   it: {
-    micOnAnnounce: "Microfono abilitato",
     modeEvent: "Evento",
     eventCreateHint: "Sei il relatore: parli tu, il pubblico ascolta tradotto.",
     roleSpeaker: "Relatore",
@@ -1439,7 +1437,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Inquadra il QR o condividi il link: il pubblico entra come ascoltatore.",
   },
   en: {
-    micOnAnnounce: "Microphone enabled",
     modeEvent: "Event",
     eventCreateHint: "You're the speaker: you talk, the audience listens translated.",
     roleSpeaker: "Speaker",
@@ -1469,7 +1466,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Scan the QR or share the link: the audience joins as listeners.",
   },
   de: {
-    micOnAnnounce: "Mikrofon aktiviert",
     modeEvent: "Event",
     eventCreateHint: "Du bist der Sprecher: Du sprichst, das Publikum hört übersetzt.",
     roleSpeaker: "Sprecher",
@@ -1499,7 +1495,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "QR scannen oder Link teilen: Das Publikum tritt als Zuhörer bei.",
   },
   fr: {
-    micOnAnnounce: "Microphone activé",
     modeEvent: "Événement",
     eventCreateHint: "Vous êtes l'intervenant : vous parlez, le public écoute traduit.",
     roleSpeaker: "Intervenant",
@@ -1529,7 +1524,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Scannez le QR ou partagez le lien : le public rejoint en auditeur.",
   },
   es: {
-    micOnAnnounce: "Micrófono activado",
     modeEvent: "Evento",
     eventCreateHint: "Eres el ponente: tú hablas, el público escucha traducido.",
     roleSpeaker: "Ponente",
@@ -1559,7 +1553,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Escanea el QR o comparte el enlace: el público entra como oyente.",
   },
   pt: {
-    micOnAnnounce: "Microfone ativado",
     modeEvent: "Evento",
     eventCreateHint: "És o orador: falas tu, o público ouve traduzido.",
     roleSpeaker: "Orador",
@@ -1589,7 +1582,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Digitaliza o QR ou partilha o link: o público entra como ouvinte.",
   },
   nl: {
-    micOnAnnounce: "Microfoon ingeschakeld",
     modeEvent: "Evenement",
     eventCreateHint: "Jij bent de spreker: jij praat, het publiek luistert vertaald.",
     roleSpeaker: "Spreker",
@@ -1619,7 +1611,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Scan de QR of deel de link: het publiek komt binnen als luisteraar.",
   },
   pl: {
-    micOnAnnounce: "Mikrofon włączony",
     modeEvent: "Wydarzenie",
     eventCreateHint: "Jesteś prelegentem: ty mówisz, publiczność słucha tłumaczenia.",
     roleSpeaker: "Prelegent",
@@ -1649,7 +1640,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Zeskanuj QR lub udostępnij link: publiczność dołącza jako słuchacze.",
   },
   ru: {
-    micOnAnnounce: "Микрофон включён",
     modeEvent: "Событие",
     eventCreateHint: "Вы докладчик: вы говорите, зал слушает в переводе.",
     roleSpeaker: "Докладчик",
@@ -1679,7 +1669,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "Отсканируйте QR или поделитесь ссылкой: зал входит как слушатели.",
   },
   zh: {
-    micOnAnnounce: "麦克风已启用",
     modeEvent: "活动",
     eventCreateHint: "你是演讲者：你说话，观众听到翻译。",
     roleSpeaker: "演讲者",
@@ -1707,7 +1696,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "扫描二维码或分享链接：观众以聆听者身份加入。",
   },
   ja: {
-    micOnAnnounce: "マイクが有効になりました",
     modeEvent: "イベント",
     eventCreateHint: "あなたは講演者です：あなたが話し、聴衆は翻訳を聞きます。",
     roleSpeaker: "講演者",
@@ -1736,7 +1724,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "QRをスキャンするかリンクを共有：聴衆はリスナーとして参加します。",
   },
   ko: {
-    micOnAnnounce: "마이크가 활성화되었습니다",
     modeEvent: "이벤트",
     eventCreateHint: "당신은 발표자입니다: 당신이 말하고 청중은 번역으로 듣습니다.",
     roleSpeaker: "발표자",
@@ -1765,7 +1752,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "QR을 스캔하거나 링크를 공유하세요: 청중은 청취자로 입장합니다.",
   },
   ar: {
-    micOnAnnounce: "تم تفعيل الميكروفون",
     modeEvent: "فعالية",
     eventCreateHint: "أنت المتحدث: أنت تتكلم والجمهور يستمع بالترجمة.",
     roleSpeaker: "المتحدث",
@@ -1795,7 +1781,6 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     eventShareHint: "امسح رمز QR أو شارك الرابط: ينضم الجمهور كمستمعين.",
   },
   hi: {
-    micOnAnnounce: "माइक्रोफ़ोन सक्षम",
     modeEvent: "इवेंट",
     eventCreateHint: "आप वक्ता हैं: आप बोलते हैं, दर्शक अनुवादित सुनते हैं।",
     roleSpeaker: "वक्ता",
