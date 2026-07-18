@@ -104,6 +104,7 @@ babyl/
 | `OPENAI_API_KEY` | — | Abilita la traduzione simultanea; assente = voce originale |
 | `OPENAI_REALTIME_MODEL` | `gpt-realtime` | Modello Realtime da usare |
 | `OPENAI_REALTIME_VOICE` | `marin` | Voce della sintesi |
+| `OPENAI_VAD_THRESHOLD` | `0.6` | Sensibilità del VAD (0–1). Più alta = meno reattiva al rumore di fondo, così nelle pause non partono segmenti spuri che ripeterebbero l'ultimo enunciato. Alzala (es. `0.7`) in sale molto rumorose. |
 | `TRANSLATION_TIMING` | `streaming` | Tempistica di default delle nuove stanze: `streaming` (simultanea), `interview` (frasi intere), `consecutive` (al rilascio del PTT; `release` è un alias). Modificabile in stanza dal selettore UI. |
 | `STATIC_DIR` | `web/dist` | Cartella della SPA buildata |
 | `BABYL_ADMIN_TOKEN` | — | Abilita l'API degli **eventi programmati** (`/api/events`, header `x-admin-token`) e l'**area organizzatore** su `/organizer` (crea eventi con link/QR stabile). Assente = spente, server identico a prima. Auth organizzatore per email in fase 2. |

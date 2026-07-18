@@ -20,6 +20,7 @@ services:
       # Opzionali:
       # - OPENAI_REALTIME_MODEL=gpt-realtime
       # - OPENAI_REALTIME_VOICE=marin
+      # - OPENAI_VAD_THRESHOLD=0.7   # più alto in sale rumorose (meno ripetizioni nelle pause)
       # - TRANSLATION_TIMING=release   # traduzione al rilascio invece che simultanea
       # Eventi programmati (API + persistenza SQLite). Senza token l'API è spenta
       # e il server resta identico. Il file DB va su volume per sopravvivere agli

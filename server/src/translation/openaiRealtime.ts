@@ -11,6 +11,17 @@ const REALTIME_URL = "wss://api.openai.com/v1/realtime";
 const SAMPLE_RATE = 24000;
 
 /**
+ * Sensibilità del VAD server-side (0–1). Più alta = meno reattiva al rumore di
+ * fondo: nelle **pause** il brusio della sala non fa scattare segmenti spuri
+ * che il modello tradurrebbe ripetendo l'ultimo enunciato. Default prudente per
+ * ambienti rumorosi (eventi); alzabile via env per sale molto rumorose.
+ */
+const VAD_THRESHOLD = Math.min(
+  1,
+  Math.max(0, Number(process.env.OPENAI_VAD_THRESHOLD ?? 0.6)),
+);
+
+/**
  * Coda di silenzio (600 ms di PCM16 a zero) accodata al rilascio del PTT nelle
  * modalità a VAD: fa scattare il VAD sull'ultimo segmento di parlato senza
  * bisogno del commit manuale, che confliggerebbe col VAD server-side.
@@ -125,6 +136,8 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       `Do not add comments. ` +
       `Do not explain, paraphrase, rephrase, interpret, or describe the meaning. ` +
       `Do not summarize or expand. ` +
+      `Never repeat a previous translation. ` +
+      `If the input contains no speech to translate, stay silent and output nothing. ` +
       `Preserve tone, register, and intent.`;
 
     const ws = await this.openSocket();
@@ -151,7 +164,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
                   // Segmentazione sulle pause naturali del parlato: ogni
                   // segmento viene tradotto mentre il parlante prosegue.
                   type: "server_vad",
-                  threshold: 0.5,
+                  threshold: VAD_THRESHOLD,
                   prefix_padding_ms: turn.prefixMs,
                   silence_duration_ms: turn.silenceMs,
                   create_response: true,
