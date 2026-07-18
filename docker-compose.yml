@@ -21,6 +21,13 @@ services:
       # - OPENAI_REALTIME_MODEL=gpt-realtime
       # - OPENAI_REALTIME_VOICE=marin
       # - TRANSLATION_TIMING=release   # traduzione al rilascio invece che simultanea
+      # Eventi programmati (API + persistenza SQLite). Senza token l'API è spenta
+      # e il server resta identico. Il file DB va su volume per sopravvivere agli
+      # aggiornamenti immagine (vedi volumes qui sotto).
+      - BABYL_ADMIN_TOKEN=${BABYL_ADMIN_TOKEN:-}
+      - BABYL_DB_PATH=/data/babyl.db
+    volumes:
+      - babyl-data:/data
     labels:
       - com.centurylinklabs.watchtower.enable=true
 
@@ -36,3 +43,8 @@ services:
       - WATCHTOWER_LABEL_ENABLE=true
       - WATCHTOWER_CLEANUP=true
       - WATCHTOWER_POLL_INTERVAL=300
+
+# Persistenza degli eventi programmati (file SQLite): resta fuori dal layer
+# immagine, così sopravvive ad aggiornamenti e ricreazioni del container.
+volumes:
+  babyl-data:

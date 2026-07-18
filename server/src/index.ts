@@ -10,6 +10,8 @@ import {
 import { RoomManager } from "./rooms.ts";
 import { createStaticHandler } from "./static.ts";
 import { providerFromEnv } from "./translation/openaiRealtime.ts";
+import { Db } from "./db.ts";
+import { handleApi } from "./api.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_NICKNAME_LENGTH = 40;
@@ -30,6 +32,11 @@ const translationProvider = providerFromEnv();
 const defaultTiming = parseTiming(process.env.TRANSLATION_TIMING);
 const rooms = new RoomManager(translationProvider, defaultTiming);
 
+// Eventi programmati (Fase 1): API + persistenza attive solo se è configurato un
+// token admin. Senza, il server resta identico a oggi (nessun DB, nessuna API).
+const adminToken = process.env.BABYL_ADMIN_TOKEN;
+const db = adminToken ? new Db() : null;
+
 const staticHandler = createStaticHandler(
   process.env.STATIC_DIR ??
     fileURLToPath(new URL("../../web/dist", import.meta.url)),
@@ -47,6 +54,20 @@ const httpServer = createServer((req, res) => {
       "cache-control": "no-store",
     });
     res.end(JSON.stringify(rooms.metricsSnapshot()));
+    return;
+  }
+  if ((req.url ?? "").startsWith("/api/")) {
+    if (db && adminToken) {
+      void handleApi(req, res, { db, adminToken }).catch(() => {
+        if (!res.headersSent) {
+          res.writeHead(500, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: "errore-interno" }));
+        }
+      });
+    } else {
+      res.writeHead(404, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "api-disabilitata" }));
+    }
     return;
   }
   if (staticHandler) {
@@ -216,5 +237,10 @@ httpServer.listen(PORT, () => {
     translationProvider
       ? `[babyl] traduzione attiva: ${translationProvider.name} (tempistica di default: ${defaultTiming})`
       : "[babyl] traduzione DISATTIVATA (OPENAI_API_KEY assente): voce originale a tutti",
+  );
+  console.log(
+    db
+      ? "[babyl] API eventi attiva (BABYL_ADMIN_TOKEN configurato)"
+      : "[babyl] API eventi disattivata (BABYL_ADMIN_TOKEN assente)",
   );
 });

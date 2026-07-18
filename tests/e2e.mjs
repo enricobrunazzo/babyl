@@ -39,7 +39,7 @@ function spawnChild(command, args, options) {
 function startServer() {
   const child = spawnChild(
     process.execPath,
-    ["--import", "tsx", "server/src/index.ts"],
+    ["--disable-warning=ExperimentalWarning", "--import", "tsx", "server/src/index.ts"],
     {
       cwd: ROOT,
       env: { ...process.env, PORT: String(WS_PORT) },

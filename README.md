@@ -106,6 +106,8 @@ babyl/
 | `OPENAI_REALTIME_VOICE` | `marin` | Voce della sintesi |
 | `TRANSLATION_TIMING` | `streaming` | Tempistica di default delle nuove stanze: `streaming` (simultanea), `interview` (frasi intere), `consecutive` (al rilascio del PTT; `release` è un alias). Modificabile in stanza dal selettore UI. |
 | `STATIC_DIR` | `web/dist` | Cartella della SPA buildata |
+| `BABYL_ADMIN_TOKEN` | — | Abilita l'API degli **eventi programmati** (`/api/events`, header `x-admin-token`). Assente = API spenta, server identico a prima. Auth organizzatore vera in fase 2. |
+| `BABYL_DB_PATH` | `data/babyl.db` | Percorso del file SQLite (persistenza eventi). In Docker va su volume montato. |
 
 ## Diagnostica e consumi
 
