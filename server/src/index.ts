@@ -12,6 +12,7 @@ import { createStaticHandler } from "./static.ts";
 import { providerFromEnv } from "./translation/openaiRealtime.ts";
 import { Db } from "./db.ts";
 import { handleApi } from "./api.ts";
+import { Settings } from "./settings.ts";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const MAX_NICKNAME_LENGTH = 40;
@@ -36,12 +37,16 @@ const defaultTiming = parseTiming(process.env.TRANSLATION_TIMING);
 const adminToken = process.env.BABYL_ADMIN_TOKEN;
 const db = adminToken ? new Db() : null;
 
+// Impostazioni di default regolabili a runtime (pannello admin): la tempistica
+// delle nuove stanze si legge da qui a ogni creazione.
+const settings = new Settings(db, defaultTiming);
+
 // Idratazione delle stanze da evento: un join su uno slug registrato adotta la
 // tempistica salvata e nasce in modalità evento (fetta 3). Assente il DB, le
 // stanze restano effimere come prima.
 const rooms = new RoomManager(
   translationProvider,
-  defaultTiming,
+  () => settings.get().defaultTiming,
   db
     ? (slug) => {
         const event = db.getEventBySlug(slug);
@@ -71,7 +76,7 @@ const httpServer = createServer((req, res) => {
   }
   if ((req.url ?? "").startsWith("/api/")) {
     if (db && adminToken) {
-      void handleApi(req, res, { db, adminToken }).catch(() => {
+      void handleApi(req, res, { db, adminToken, settings }).catch(() => {
         if (!res.headersSent) {
           res.writeHead(500, { "content-type": "application/json" });
           res.end(JSON.stringify({ error: "errore-interno" }));

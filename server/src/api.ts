@@ -10,6 +10,7 @@
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Db, type EventRecord } from "./db.ts";
+import type { Settings } from "./settings.ts";
 import {
   TRANSLATION_TIMINGS,
   type TranslationTiming,
@@ -140,6 +141,7 @@ function readJsonBody(req: IncomingMessage): Promise<unknown> {
 export interface ApiDeps {
   db: Db;
   adminToken: string | undefined;
+  settings: Settings;
 }
 
 /**
@@ -165,6 +167,28 @@ export async function handleApi(
   }
 
   try {
+    // GET /api/settings — impostazioni di default correnti.
+    if (url === "/api/settings" && req.method === "GET") {
+      sendJson(res, 200, { settings: deps.settings.get() });
+      return true;
+    }
+
+    // PUT /api/settings — aggiorna le impostazioni di default (pannello admin).
+    if (url === "/api/settings" && req.method === "PUT") {
+      const body = (await readJsonBody(req)) as {
+        defaultTiming?: string;
+        eventDefaultTiming?: string;
+      };
+      const settings = deps.settings.update({
+        defaultTiming: body.defaultTiming as TranslationTiming | undefined,
+        eventDefaultTiming: body.eventDefaultTiming as
+          | TranslationTiming
+          | undefined,
+      });
+      sendJson(res, 200, { settings });
+      return true;
+    }
+
     // GET /api/events/:slug
     const slugMatch = url.match(/^\/api\/events\/([^/]+)$/);
     if (slugMatch && req.method === "GET") {
@@ -196,6 +220,8 @@ export async function handleApi(
 
     if (url === "/api/events" && req.method === "POST") {
       const body = (await readJsonBody(req)) as CreateEventInput;
+      // Senza tempistica esplicita si usa il default eventi del pannello admin.
+      if (!body.timing) body.timing = deps.settings.get().eventDefaultTiming;
       const event = createEventForOrganizer(deps.db, body);
       sendJson(res, 201, { event });
       return true;

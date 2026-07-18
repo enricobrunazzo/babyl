@@ -7,7 +7,7 @@ import { Db } from "./db.ts";
 
 test("migrazioni: schema alla versione corrente su DB nuovo", () => {
   const db = new Db(":memory:");
-  assert.equal(db.schemaVersion(), 1);
+  assert.equal(db.schemaVersion(), 2);
   db.close();
 });
 
@@ -137,6 +137,16 @@ test("evento: listEvents restituisce tutti gli eventi, più recenti prima", () =
   db.close();
 });
 
+test("impostazioni: get/set chiave-valore con upsert", () => {
+  const db = new Db(":memory:");
+  assert.equal(db.getSetting("defaultTiming"), null);
+  db.setSetting("defaultTiming", "interview");
+  assert.equal(db.getSetting("defaultTiming"), "interview");
+  db.setSetting("defaultTiming", "consecutive"); // upsert
+  assert.equal(db.getSetting("defaultTiming"), "consecutive");
+  db.close();
+});
+
 test("persistenza: i dati sopravvivono alla riapertura del file", () => {
   const dir = mkdtempSync(join(tmpdir(), "babyl-db-"));
   const path = join(dir, "test.db");
@@ -153,7 +163,7 @@ test("persistenza: i dati sopravvivono alla riapertura del file", () => {
     db1.close();
 
     const db2 = new Db(path);
-    assert.equal(db2.schemaVersion(), 1);
+    assert.equal(db2.schemaVersion(), 2);
     assert.equal(db2.getOrganizerByEmail("persist@x.it")?.creditsSeconds, 42);
     assert.deepEqual(db2.getEventBySlug("persistente")?.listenLangs, ["it", "fr"]);
     db2.close();

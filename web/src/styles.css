@@ -2004,3 +2004,188 @@ main {
   padding: 1px 6px;
   border-radius: 5px;
 }
+
+/* ---------- Pannello admin (/admin) ---------- */
+
+.admin {
+  max-width: 760px;
+  gap: 24px;
+}
+
+.admin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.admin-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-card-head h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.admin-saved {
+  font-size: 0.8rem;
+  color: var(--free);
+  font-weight: 600;
+}
+
+.admin-sub {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.admin-settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 560px) {
+  .admin-settings {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Statistiche in evidenza */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .admin-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 13px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.admin-stat.accent {
+  border-color: rgba(139, 92, 246, 0.4);
+  background: var(--accent-weak);
+}
+
+.admin-stat .k {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.admin-stat .v {
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-stat .s {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.admin-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+.admin-row {
+  display: flex;
+  justify-content: space-between;
+  background: var(--surface-2);
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+
+.admin-row .val {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-h3 {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+.admin-rooms {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-room {
+  padding: 11px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.admin-room-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+}
+
+.admin-room-top b {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+.admin-pairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.admin-pair {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 2px 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-muted {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+.admin-foot {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.admin-foot a {
+  color: var(--accent-hover);
+}

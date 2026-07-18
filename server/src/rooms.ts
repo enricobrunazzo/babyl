@@ -658,7 +658,14 @@ export class RoomManager {
 
   constructor(
     private provider: TranslationProvider | null = null,
-    private defaultTiming: TranslationTiming = "streaming",
+    /**
+     * Tempistica di default delle nuove stanze di conversazione. Può essere un
+     * valore fisso o una funzione (letta a ogni creazione), così il pannello
+     * admin può cambiarla a runtime.
+     */
+    private defaultTiming:
+      | TranslationTiming
+      | (() => TranslationTiming) = "streaming",
     /**
      * Idratazione da evento programmato: dato lo slug della stanza, ritorna la
      * configurazione salvata (tempistica + modalità) o null. Iniettata dal
@@ -673,10 +680,14 @@ export class RoomManager {
       // Alla prima creazione, se lo slug corrisponde a un evento la stanza
       // nasce già con la tempistica scelta e in modalità evento.
       const ev = this.eventLookup?.(id) ?? null;
+      const fallback =
+        typeof this.defaultTiming === "function"
+          ? this.defaultTiming()
+          : this.defaultTiming;
       room = new Room(
         id,
         this.provider,
-        ev?.timing ?? this.defaultTiming,
+        ev?.timing ?? fallback,
         ev?.mode ?? "conversation",
       );
       this.rooms.set(id, room);

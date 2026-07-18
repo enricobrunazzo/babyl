@@ -83,6 +83,61 @@ export async function createEvent(input: NewEventInput): Promise<OrgEvent> {
   return event;
 }
 
+// --- Impostazioni di default (pannello admin) ---
+
+export interface AppSettings {
+  defaultTiming: string;
+  eventDefaultTiming: string;
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  return (await request<{ settings: AppSettings }>("/settings")).settings;
+}
+
+export async function updateSettings(
+  patch: Partial<AppSettings>,
+): Promise<AppSettings> {
+  const { settings } = await request<{ settings: AppSettings }>("/settings", {
+    method: "PUT",
+    body: JSON.stringify(patch),
+  });
+  return settings;
+}
+
+// --- Consumi (GET /metrics, endpoint diagnostico pubblico) ---
+
+export interface PairStats {
+  inMs: number;
+  outMs: number;
+}
+export interface RoomStats {
+  peers: number;
+  bytesIn: number;
+  bytesOut: number;
+  pttMs: number;
+  pairs: Record<string, PairStats>;
+}
+export interface Metrics {
+  uptimeSec: number;
+  rooms: number;
+  peers: number;
+  totals: {
+    bytesIn: number;
+    bytesOut: number;
+    pttMs: number;
+    inMs: number;
+    outMs: number;
+  };
+  estCostUsd: number;
+  perRoom: Record<string, RoomStats>;
+}
+
+export async function getMetrics(): Promise<Metrics> {
+  const res = await fetch("/metrics", { cache: "no-store" });
+  if (!res.ok) throw new ApiError(res.status, "metrics-error");
+  return (await res.json()) as Metrics;
+}
+
 /** Link pubblico (pubblico = ascoltatore) di un evento: apre il join snello. */
 export function eventPublicLink(slug: string): string {
   return `${location.origin}/?room=${encodeURIComponent(slug)}&event=1&join=1`;

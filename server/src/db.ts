@@ -90,6 +90,13 @@ const MIGRATIONS: readonly string[] = [
 
   CREATE INDEX idx_event_organizer ON event(organizer_id);
   `,
+  // v1 → v2: impostazioni chiave-valore modificabili a runtime dal pannello admin.
+  `
+  CREATE TABLE setting (
+    key   TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ];
 
 interface OrganizerRow {
@@ -318,6 +325,24 @@ export class Db {
 
   setEventStatus(id: number, status: EventStatus): void {
     this.db.prepare("UPDATE event SET status = ? WHERE id = ?").run(status, id);
+  }
+
+  // --- Impostazioni (chiave-valore) ---
+
+  getSetting(key: string): string | null {
+    const r = this.db
+      .prepare("SELECT value FROM setting WHERE key = ?")
+      .get(key) as { value: string } | undefined;
+    return r ? r.value : null;
+  }
+
+  setSetting(key: string, value: string): void {
+    this.db
+      .prepare(
+        "INSERT INTO setting(key, value) VALUES(?, ?) " +
+          "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      )
+      .run(key, value);
   }
 
   close(): void {
