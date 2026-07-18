@@ -2419,3 +2419,47 @@ main {
   color: var(--text-dim);
   font-size: 0.85rem;
 }
+
+/* ---------- Esperienza desktop ---------- */
+/* Su schermi larghi le viste "da telefono" (onboarding, stanza, gate) diventano
+   una card centrata che galleggia su un fondo brand, invece di una colonna
+   stretta sul vuoto. Le pagine larghe (configuratore, admin, manuale,
+   organizzatore) hanno le proprie larghezze e non sono toccate. */
+@media (min-width: 900px) {
+  body {
+    background:
+      radial-gradient(100% 60% at 50% -5%, #140309 0%, #000 55%) fixed;
+  }
+
+  .onboarding,
+  .room,
+  .earphone-gate {
+    max-width: 500px;
+    margin: 56px auto;
+    min-height: 0;
+    background: rgba(20, 20, 24, 0.55);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    box-shadow: var(--shadow-2);
+    backdrop-filter: blur(6px);
+    padding: 40px 40px calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Un po' più di respiro tipografico su desktop. */
+  .brand h1 {
+    font-size: 2.6rem;
+  }
+
+  .room-header h2 {
+    font-size: 1.7rem;
+  }
+}
+
+/* Schermi molto larghi: la card resta della stessa misura, ben centrata. */
+@media (min-width: 1400px) {
+  .onboarding,
+  .room,
+  .earphone-gate {
+    margin-top: 72px;
+  }
+}
