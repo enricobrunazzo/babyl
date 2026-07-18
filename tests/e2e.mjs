@@ -139,12 +139,12 @@ try {
   console.log("✔ canale Libero (verde) su entrambi");
 
   // --- Lock half-duplex ---
-  await a.page.dispatchEvent("button.ptt-button", "pointerdown", {
+  await a.page.dispatchEvent("button.ptt-pill", "pointerdown", {
     pointerId: 1,
   });
   await a.page.waitForSelector(".ptt-talking", { timeout: 5000 });
   await b.page.waitForSelector(".ptt-blocked", { timeout: 5000 });
-  const label = await b.page.textContent(".ptt-label");
+  const label = await b.page.textContent(".ptt-pill-text");
   if (!label.includes("Marco")) {
     throw new Error(`label Bloccato senza nome speaker: ${label}`);
   }
@@ -162,7 +162,7 @@ try {
   );
   console.log("✔ relay audio: B riceve l'audio di A attraverso il server");
 
-  await a.page.dispatchEvent("button.ptt-button", "pointerup", {
+  await a.page.dispatchEvent("button.ptt-pill", "pointerup", {
     pointerId: 1,
   });
   await a.page.waitForSelector(".ptt-free", { timeout: 5000 });
@@ -170,11 +170,11 @@ try {
   console.log("✔ rilascio: canale di nuovo Libero");
 
   // --- Inversione ruoli ---
-  await b.page.dispatchEvent("button.ptt-button", "pointerdown", {
+  await b.page.dispatchEvent("button.ptt-pill", "pointerdown", {
     pointerId: 1,
   });
   await a.page.waitForSelector(".ptt-blocked", { timeout: 5000 });
-  await b.page.dispatchEvent("button.ptt-button", "pointerup", {
+  await b.page.dispatchEvent("button.ptt-pill", "pointerup", {
     pointerId: 1,
   });
   await a.page.waitForSelector(".ptt-free", { timeout: 5000 });
