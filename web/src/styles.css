@@ -670,8 +670,7 @@ main {
 }
 
 /* Scorri per annullare: il pulsante "armato" scarta l'enunciato al rilascio. */
-.mic-button.armed,
-.ptt-button.armed {
+.mic-button.armed {
   background: var(--surface);
   border-color: var(--text-dim);
   box-shadow: none;
@@ -683,10 +682,6 @@ main {
 
 .mic-button.armed .mic-button-icon,
 .mic-button.armed .mic-button-name {
-  color: var(--text-dim);
-}
-
-.ptt-cancel-hint {
   color: var(--text-dim);
 }
 
@@ -872,273 +867,171 @@ main {
   gap: 16px;
 }
 
-.ptt-button {
+/* Controllo unico del relatore (e di chi ha la parola): una "pillola"
+   orizzontale. Il microfono (maniglia, dimensione media) è il vero pulsante:
+   lo si preme per parlare — diventa rosso — e lo si scorre verso destra fino al
+   lucchetto per bloccare a mani libere. Non c'è più il grande pulsante
+   circolare separato: uno solo comando, più intuitivo. */
+.ptt-pill {
   position: relative;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 168px;
-  height: 168px;
-  border-radius: 50%;
+  width: 300px;
+  max-width: 100%;
+  height: 60px;
+  padding: 6px;
   border: none;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
   cursor: pointer;
-  font-size: 3rem;
+  overflow: hidden;
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition:
-    transform 0.1s ease,
-    box-shadow 0.2s ease;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
 }
 
-.ptt-free {
-  background: var(--free);
-  box-shadow: 0 0 48px rgba(34, 197, 94, 0.35);
-}
-
-.ptt-talking {
-  background: var(--talking);
-  box-shadow: 0 0 64px rgba(239, 68, 68, 0.5);
-  transform: scale(1.06);
-  animation: pulse 1.2s ease-in-out infinite;
-}
-
-.ptt-blocked {
-  background: var(--blocked);
-  box-shadow: none;
+.ptt-pill:disabled {
   cursor: not-allowed;
+  opacity: 0.85;
 }
 
-.ptt-button:disabled {
-  opacity: 0.8;
-}
-
-.ptt-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-}
-
-.ptt-free .ptt-icon {
-  color: #04180d; /* microfono scuro su verde, in stile Material */
-}
-
-.ptt-talking .ptt-icon {
-  color: #ffffff;
-}
-
-.ptt-blocked .ptt-icon {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.ptt-label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  min-height: 1.4em;
-  color: var(--text-dim);
-  font-size: 0.95rem;
-  text-align: center;
-}
-
-/* Sottotesto discreto che invita a bloccare mentre si parla. */
-.ptt-sub-hint {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  opacity: 0.75;
-}
-
-.ptt-lock-hint {
-  color: var(--accent-hover);
-  font-style: normal;
-  font-weight: 600;
-}
-
-.ptt-locked-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--talking);
-  font-style: normal;
-  font-weight: 600;
-}
-
-/* Contenitore del pulsante: contesto di posizionamento per lo slide-to-lock. */
-.ptt-stage {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* Indicatore a due microfoni: «pronto» (verde) e «blocco» (grigio → rosso).
-   Rispecchia lo stato del microfono principale sopra il pulsante. */
-.ptt-mics {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ptt-mic {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--surface-2);
-  border: 1px solid var(--border-strong);
-  color: var(--blocked);
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-/* «Pronto»: microfono verde quando è libero (non bloccato). */
-.ptt-mic.is-ready {
-  background: rgba(34, 197, 94, 0.14);
-  border-color: rgba(34, 197, 94, 0.4);
-  color: var(--free);
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
-}
-
-/* «Blocco»: lucchetto rosso acceso quando il microfono è bloccato. */
-.ptt-mic-lock.is-locked {
-  background: rgba(239, 68, 68, 0.16);
-  border-color: rgba(239, 68, 68, 0.45);
-  color: var(--talking);
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14);
-}
-
-/* Slide-to-lock: binario orizzontale che compare sopra il pulsante mentre si
-   trasmette. Si scorre il microfono verde verso **destra** (--p va 0→1) fino al
-   lucchetto per bloccare, nello stile dello slide-to-unlock. */
-.lock-slider {
-  position: absolute;
-  bottom: calc(100% + 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  width: 232px;
-  height: 52px;
-  padding: 0 6px;
-  border-radius: var(--r-pill);
-  background: rgba(18, 18, 22, 0.92);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-1);
-  overflow: hidden;
-  pointer-events: none;
-  animation: install-in 0.18s ease-out;
-}
-
-.lock-slider-target {
-  position: absolute;
-  right: 14px;
-  display: inline-flex;
-  z-index: 3; /* sopra il riempimento: il lucchetto resta visibile a fine corsa */
-  color: var(--text-dim);
-  transition: color 0.15s ease, transform 0.15s ease;
-}
-
-/* Etichetta con luccichio (stile slide-to-unlock) che scorre da sinistra. */
-.lock-slider-text {
-  position: absolute;
-  left: 58px;
-  right: 40px;
-  z-index: 1;
-  text-align: center;
-  font-size: 0.85rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  pointer-events: none;
-  color: #6b6b76;
-  background: linear-gradient(100deg, #55555f 30%, #e8e8ee 50%, #55555f 70%);
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: lock-shimmer 2.6s linear infinite;
-}
-
-@keyframes lock-shimmer {
-  0% {
-    background-position: 120% 0;
-  }
-  100% {
-    background-position: -120% 0;
-  }
-}
-
-/* Riempimento verde che cresce da sinistra con il progresso dello scorrimento. */
-.lock-slider-fill {
+/* Riempimento verde che cresce da sinistra col progresso dello scorrimento;
+   visibile solo mentre si trasmette. */
+.ptt-pill-fill {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: calc(40px + var(--p, 0) * (100% - 40px));
+  width: calc(48px + var(--p, 0) * (100% - 48px));
   border-radius: var(--r-pill);
-  background: linear-gradient(to right, var(--free), rgba(34, 197, 94, 0.35));
-  opacity: 0.28;
-  transition: width 0.06s linear;
+  background: linear-gradient(to right, var(--free), rgba(34, 197, 94, 0.3));
+  opacity: 0;
+  transition: width 0.06s linear, opacity 0.2s ease;
+  pointer-events: none;
 }
 
-/* Maniglia (microfono verde) che segue il dito: scorre verso destra. */
-.lock-slider-handle {
+/* Testo di stato al centro: premi per parlare / scorri per bloccare / … */
+.ptt-pill-text {
+  position: absolute;
+  left: 62px;
+  right: 46px;
+  z-index: 1;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+/* Maniglia = microfono di dimensione media: è il pulsante. Scorre verso destra. */
+.ptt-pill-handle {
+  position: relative;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  z-index: 2;
-  width: 40px;
-  height: 40px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   background: var(--free);
   color: #04180d;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  /* Si ferma appena prima del lucchetto, che resta visibile a destra. */
-  transform: translateX(calc(var(--p, 0) * 172px));
-  transition: transform 0.06s linear, background 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transform: translateX(calc(var(--p, 0) * 186px));
+  transition: transform 0.06s linear, background 0.2s ease, color 0.2s ease;
 }
 
-.lock-slider.armed {
-  border-color: var(--free);
-  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2), var(--shadow-1);
+/* Lucchetto bersaglio a destra: grigio, diventa rosso a blocco attivo. */
+.ptt-pill-lock {
+  position: absolute;
+  right: 16px;
+  z-index: 1;
+  display: inline-flex;
+  color: var(--text-dim);
+  transition: color 0.2s ease, transform 0.2s ease;
 }
 
-.lock-slider.armed .lock-slider-target {
+/* --- Stati --- */
+
+/* Libero: microfono verde, invito a premere. */
+.ptt-pill.ptt-free .ptt-pill-handle {
+  background: var(--free);
+  color: #04180d;
+}
+
+/* In trasmissione: microfono rosso, alone acceso; si può scorrere per bloccare. */
+.ptt-pill.ptt-talking {
+  box-shadow: 0 0 36px rgba(239, 68, 68, 0.28);
+}
+
+.ptt-pill.ptt-talking .ptt-pill-fill {
+  opacity: 0.22;
+}
+
+.ptt-pill.ptt-talking .ptt-pill-handle {
+  background: var(--talking);
+  color: #ffffff;
+}
+
+.ptt-pill.ptt-talking .ptt-pill-text {
+  color: var(--text);
+}
+
+/* Sta per bloccare (scorri a destra fino in fondo): il lucchetto si illumina. */
+.ptt-pill.lock-armed .ptt-pill-lock {
   color: var(--free);
-  transform: scale(1.2);
+  transform: scale(1.18);
   filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.6));
 }
 
+/* Annullamento armato (scorri via mentre parli): la pillola si spegne. */
+.ptt-pill.armed {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+/* Bloccato a mani libere: microfono grigio, lucchetto rosso, «microfono bloccato». */
+.ptt-pill.locked {
+  background: rgba(239, 68, 68, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.35);
+}
+
+.ptt-pill.locked .ptt-pill-handle {
+  background: var(--surface);
+  color: var(--blocked);
+  box-shadow: none;
+}
+
+.ptt-pill.locked .ptt-pill-lock {
+  color: var(--talking);
+  transform: scale(1.05);
+}
+
+.ptt-pill.locked .ptt-pill-text {
+  color: var(--talking);
+  font-weight: 600;
+}
+
+/* Canale occupato (un altro partecipante parla): pillola inerte. */
+.ptt-pill.ptt-blocked {
+  cursor: not-allowed;
+}
+
+.ptt-pill.ptt-blocked .ptt-pill-handle {
+  background: var(--blocked);
+  color: rgba(255, 255, 255, 0.7);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .lock-slider,
-  .lock-slider-fill,
-  .lock-slider-handle,
-  .lock-slider-text {
-    animation: none;
+  .ptt-pill,
+  .ptt-pill-fill,
+  .ptt-pill-handle {
     transition: none;
   }
-  .lock-slider-text {
-    -webkit-text-fill-color: #9a9aa4;
-  }
 }
-
-/* Sta per bloccare (scorri a destra): il pulsante si "arma" con un alone verde. */
-.ptt-button.lock-armed {
-  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2), 0 0 60px rgba(34, 197, 94, 0.5);
-}
-
-/* Bloccato a mani libere: microfono aperto, fermo (niente pulsazione), con
-   un anello che segnala lo stato "toccami per fermare". */
-.ptt-button.locked {
-  animation: none;
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3), 0 0 64px rgba(239, 68, 68, 0.5);
-}
-
 .room-error {
   justify-content: center;
   gap: 16px;
