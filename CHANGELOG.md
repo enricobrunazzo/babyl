@@ -46,6 +46,14 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Modificato
 
+- **Slide-to-lock orizzontale (scorri a destra).** Il blocco del microfono a
+  mani libere non si arma più scorrendo verso l'alto ma **verso destra**, nello
+  stile dello slide-to-unlock: un microfono verde («pronto») scorre lungo un
+  binario fino al lucchetto. Aggiunto un indicatore a due microfoni sopra il
+  pulsante — «pronto» verde e «blocco» grigio; a blocco attivo il primo si
+  spegne in grigio e il secondo si accende in rosso, coerente col microfono
+  principale che diventa rosso. (`web/src/lib/holdToTalk.ts`,
+  `web/src/components/PTTButton.tsx`, `web/src/styles.css`, `web/src/lib/i18n.ts`)
 - **Timeout di inattività sulle sessioni del motore**: dopo 5 minuti senza
   audio una sessione viene chiusa (sweep al minuto) e ricreata in modo
   trasparente alla pressione PTT successiva — niente connessioni pendenti

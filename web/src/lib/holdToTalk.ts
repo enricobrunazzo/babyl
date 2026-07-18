@@ -8,17 +8,18 @@ import { useCallback, useRef, useState } from "react";
 const CANCEL_THRESHOLD_PX = 80;
 
 /**
- * Spostamento verticale verso l'alto (px) oltre il quale il rilascio **blocca**
- * il microfono a mani libere invece di chiuderlo: è il gesto "scorri su per
- * bloccare" dei messaggi vocali. Utile quando si parla a lungo (relatore,
- * stanza) senza tenere premuto. Attivo solo se `onLock` è fornito.
+ * Spostamento orizzontale verso **destra** (px) oltre il quale il rilascio
+ * **blocca** il microfono a mani libere invece di chiuderlo: è il gesto "scorri
+ * a destra per bloccare", nello stile dello slide-to-unlock. Utile quando si
+ * parla a lungo (relatore, stanza) senza tenere premuto. Attivo solo se
+ * `onLock` è fornito.
  */
-const LOCK_THRESHOLD_PX = 96;
+const LOCK_THRESHOLD_PX = 120;
 
 export interface HoldToTalk {
   /** true quando lo scorrimento ha armato l'annullamento (rilascia per annullare). */
   armed: boolean;
-  /** true quando lo scorrimento verso l'alto ha armato il blocco (rilascia per bloccare). */
+  /** true quando lo scorrimento verso destra ha armato il blocco (rilascia per bloccare). */
   lockArmed: boolean;
   /** Avanzamento dello slide-to-lock, 0→1 (per animare la maniglia). */
   lockProgress: number;
@@ -35,10 +36,11 @@ export interface HoldToTalk {
 }
 
 /**
- * Gesto push-to-talk con "scorri per annullare" e "scorri su per bloccare",
- * condiviso da MicButton (single device) e PTTButton. Se `onCancel` è assente il
- * gesto non offre l'annullamento; se `onLock` è assente non offre il blocco a
- * mani libere (nessuna regressione per le modalità in cui non hanno effetto).
+ * Gesto push-to-talk con "scorri per annullare" e "scorri a destra per
+ * bloccare", condiviso da MicButton (single device) e PTTButton. Se `onCancel` è
+ * assente il gesto non offre l'annullamento; se `onLock` è assente non offre il
+ * blocco a mani libere (nessuna regressione per le modalità in cui non hanno
+ * effetto).
  */
 export function useHoldToTalk(opts: {
   onPress: () => void;
@@ -88,10 +90,11 @@ export function useHoldToTalk(opts: {
       if (!holding.current) return;
       const dx = x - origin.current.x;
       const dy = y - origin.current.y;
-      // Precedenza al blocco: uno scorrimento verso l'alto (prevalentemente
-      // verticale) alimenta lo slide-to-lock; laterale/basso arma l'annullamento.
-      if (onLock && dy < 0 && Math.abs(dy) >= Math.abs(dx)) {
-        const progress = Math.min(1, -dy / LOCK_THRESHOLD_PX);
+      // Precedenza al blocco: uno scorrimento verso **destra** (prevalentemente
+      // orizzontale) alimenta lo slide-to-lock; l'altro scorrimento (sinistra o
+      // verticale) oltre soglia arma l'annullamento.
+      if (onLock && dx > 0 && Math.abs(dx) >= Math.abs(dy)) {
+        const progress = Math.min(1, dx / LOCK_THRESHOLD_PX);
         setLockProgress(progress);
         setLockArmedValue(progress >= 1);
         setArmedValue(false);

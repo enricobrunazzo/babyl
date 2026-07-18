@@ -974,8 +974,47 @@ main {
   justify-content: center;
 }
 
-/* Slide-to-lock: binario che compare sopra il pulsante mentre si trasmette.
-   Si scorre il dito verso l'alto (--p va 0→1) fino al lucchetto per bloccare. */
+/* Indicatore a due microfoni: «pronto» (verde) e «blocco» (grigio → rosso).
+   Rispecchia lo stato del microfono principale sopra il pulsante. */
+.ptt-mics {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ptt-mic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  color: var(--blocked);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* «Pronto»: microfono verde quando è libero (non bloccato). */
+.ptt-mic.is-ready {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: var(--free);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
+}
+
+/* «Blocco»: lucchetto rosso acceso quando il microfono è bloccato. */
+.ptt-mic-lock.is-locked {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: var(--talking);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14);
+}
+
+/* Slide-to-lock: binario orizzontale che compare sopra il pulsante mentre si
+   trasmette. Si scorre il microfono verde verso **destra** (--p va 0→1) fino al
+   lucchetto per bloccare, nello stile dello slide-to-unlock. */
 .lock-slider {
   position: absolute;
   bottom: calc(100% + 12px);
@@ -983,14 +1022,12 @@ main {
   transform: translateX(-50%);
   z-index: 5;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
-  width: 54px;
-  height: 152px;
-  padding: 11px 0;
+  width: 232px;
+  height: 52px;
+  padding: 0 6px;
   border-radius: var(--r-pill);
-  background: rgba(18, 18, 22, 0.9);
+  background: rgba(18, 18, 22, 0.92);
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-1);
   overflow: hidden;
@@ -999,68 +1036,100 @@ main {
 }
 
 .lock-slider-target {
+  position: absolute;
+  right: 14px;
   display: inline-flex;
-  z-index: 3; /* sopra la maniglia: il lucchetto resta visibile a fine corsa */
+  z-index: 3; /* sopra il riempimento: il lucchetto resta visibile a fine corsa */
   color: var(--text-dim);
   transition: color 0.15s ease, transform 0.15s ease;
 }
 
-/* Riempimento accento che sale con il progresso dello scorrimento. */
+/* Etichetta con luccichio (stile slide-to-unlock) che scorre da sinistra. */
+.lock-slider-text {
+  position: absolute;
+  left: 58px;
+  right: 40px;
+  z-index: 1;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  color: #6b6b76;
+  background: linear-gradient(100deg, #55555f 30%, #e8e8ee 50%, #55555f 70%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: lock-shimmer 2.6s linear infinite;
+}
+
+@keyframes lock-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+/* Riempimento verde che cresce da sinistra con il progresso dello scorrimento. */
 .lock-slider-fill {
   position: absolute;
   left: 0;
-  right: 0;
+  top: 0;
   bottom: 0;
-  height: calc(var(--p, 0) * 100%);
-  background: linear-gradient(to top, var(--accent-press), var(--accent));
-  opacity: 0.32;
-  transition: height 0.06s linear;
+  width: calc(40px + var(--p, 0) * (100% - 40px));
+  border-radius: var(--r-pill);
+  background: linear-gradient(to right, var(--free), rgba(34, 197, 94, 0.35));
+  opacity: 0.28;
+  transition: width 0.06s linear;
 }
 
-/* Maniglia che segue il dito: sale di ~96px sul percorso completo. */
+/* Maniglia (microfono verde) che segue il dito: scorre verso destra. */
 .lock-slider-handle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   z-index: 2;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--talking);
-  color: #fff;
+  background: var(--free);
+  color: #04180d;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  /* Si ferma appena sotto il lucchetto, che resta visibile in cima. */
-  transform: translateY(calc(var(--p, 0) * -82px));
+  /* Si ferma appena prima del lucchetto, che resta visibile a destra. */
+  transform: translateX(calc(var(--p, 0) * 172px));
   transition: transform 0.06s linear, background 0.15s ease;
 }
 
 .lock-slider.armed {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-weak), var(--shadow-1);
+  border-color: var(--free);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2), var(--shadow-1);
 }
 
 .lock-slider.armed .lock-slider-target {
-  color: #fff;
+  color: var(--free);
   transform: scale(1.2);
-  filter: drop-shadow(0 0 6px var(--accent-hover));
-}
-
-.lock-slider.armed .lock-slider-handle {
-  background: var(--accent);
+  filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.6));
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lock-slider,
   .lock-slider-fill,
-  .lock-slider-handle {
+  .lock-slider-handle,
+  .lock-slider-text {
     animation: none;
     transition: none;
   }
+  .lock-slider-text {
+    -webkit-text-fill-color: #9a9aa4;
+  }
 }
 
-/* Sta per bloccare (scorri su): il pulsante si "arma" con un alone accento. */
+/* Sta per bloccare (scorri a destra): il pulsante si "arma" con un alone verde. */
 .ptt-button.lock-armed {
-  box-shadow: 0 0 0 4px var(--accent-weak), 0 0 60px rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2), 0 0 60px rgba(34, 197, 94, 0.5);
 }
 
 /* Bloccato a mani libere: microfono aperto, fermo (niente pulsazione), con

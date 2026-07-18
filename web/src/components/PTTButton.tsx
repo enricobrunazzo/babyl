@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { PttState } from "../lib/roomClient";
 import { useHoldToTalk } from "../lib/holdToTalk";
-import { ChevronUpIcon, LockIcon, MicIcon, StopIcon } from "./icons";
+import { LockIcon, MicIcon, StopIcon } from "./icons";
 
 export interface PttLabels {
   free: string;
@@ -125,8 +125,23 @@ export function PTTButton({
   // Lo slide-to-lock compare mentre si trasmette (non annullando, non bloccati).
   const showSlider = lockable && !locked && !armedNow && state === "talking";
 
+  // Indicatore a due microfoni (§ slide-to-lock): «pronto» verde e «blocco»
+  // grigio; a blocco attivo il primo si spegne (grigio) e il secondo si accende
+  // in rosso, coerente col microfono principale che diventa rosso.
+  const showMics = lockable && state !== "blocked";
+
   return (
     <div className="ptt">
+      {showMics && (
+        <div className="ptt-mics" role="img" aria-label={locked ? labels.lockedStop : labels.free}>
+          <span className={`ptt-mic${!locked ? " is-ready" : ""}`}>
+            <MicIcon size={18} />
+          </span>
+          <span className={`ptt-mic ptt-mic-lock${locked ? " is-locked" : ""}`}>
+            <LockIcon size={16} />
+          </span>
+        </div>
+      )}
       <div className="ptt-stage">
         {showSlider && (
           <div
@@ -134,12 +149,13 @@ export function PTTButton({
             style={{ "--p": lockProgress } as CSSProperties}
             aria-hidden="true"
           >
+            <span className="lock-slider-fill" />
+            <span className="lock-slider-text">{labels.lockHint}</span>
+            <span className="lock-slider-handle">
+              <MicIcon size={22} />
+            </span>
             <span className="lock-slider-target">
               <LockIcon size={18} />
-            </span>
-            <span className="lock-slider-fill" />
-            <span className="lock-slider-handle">
-              <ChevronUpIcon size={20} />
             </span>
           </div>
         )}
