@@ -3,7 +3,13 @@ import { Onboarding, type Profile } from "./components/Onboarding";
 import { Room } from "./components/Room";
 import { EarphoneGate } from "./components/EarphoneGate";
 import { InstallPrompt } from "./components/InstallPrompt";
+import { OrganizerApp } from "./components/OrganizerApp";
 import { newRoomId } from "./lib/roomName";
+
+/** L'area organizzatore vive su una rotta dedicata, fuori dal flusso pubblico. */
+function isOrganizerRoute(): boolean {
+  return location.pathname.replace(/\/+$/, "") === "/organizer";
+}
 
 /**
  * Stanza dall'URL (?room=… oppure /r/<nome>), con default pubblico:
@@ -71,6 +77,9 @@ export default function App() {
     setProfile(null);
     setEarphonesReady(false);
   };
+
+  // Rotta /organizer: pannello interno, indipendente da stanza/onboarding.
+  if (isOrganizerRoute()) return <OrganizerApp />;
 
   return (
     <>

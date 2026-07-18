@@ -181,12 +181,15 @@ export async function handleApi(
       const email = new URL(req.url ?? "", "http://x").searchParams.get(
         "organizer",
       );
-      const organizer = email
-        ? deps.db.getOrganizerByEmail(email.toLowerCase())
-        : null;
-      const events = organizer
-        ? deps.db.listEventsByOrganizer(organizer.id)
-        : [];
+      // Con ?organizer=email si filtra; senza, vista admin di tutti gli eventi
+      // (operatore singolo).
+      let events: EventRecord[];
+      if (email) {
+        const organizer = deps.db.getOrganizerByEmail(email.toLowerCase());
+        events = organizer ? deps.db.listEventsByOrganizer(organizer.id) : [];
+      } else {
+        events = deps.db.listEvents();
+      }
       sendJson(res, 200, { events });
       return true;
     }

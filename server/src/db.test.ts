@@ -109,6 +109,34 @@ test("evento: cambio stato e lista per organizzatore ordinata", () => {
   db.close();
 });
 
+test("evento: listEvents restituisce tutti gli eventi, più recenti prima", () => {
+  const db = new Db(":memory:");
+  const o1 = db.createOrganizer("uno@x.it");
+  const o2 = db.createOrganizer("due@x.it");
+  db.createEvent({
+    slug: "vecchio",
+    organizerId: o1.id,
+    title: "Vecchio",
+    listenLangs: ["it"],
+    timing: "streaming",
+    scheduledAt: 1000,
+  });
+  db.createEvent({
+    slug: "nuovo",
+    organizerId: o2.id,
+    title: "Nuovo",
+    listenLangs: ["en"],
+    timing: "streaming",
+    scheduledAt: 5000,
+  });
+  const all = db.listEvents();
+  assert.deepEqual(
+    all.map((e) => e.slug),
+    ["nuovo", "vecchio"],
+  );
+  db.close();
+});
+
 test("persistenza: i dati sopravvivono alla riapertura del file", () => {
   const dir = mkdtempSync(join(tmpdir(), "babyl-db-"));
   const path = join(dir, "test.db");

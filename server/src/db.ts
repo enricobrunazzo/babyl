@@ -306,6 +306,16 @@ export class Db {
     return rows.map(toEvent);
   }
 
+  /** Tutti gli eventi (vista admin / operatore singolo), più recenti prima. */
+  listEvents(): EventRecord[] {
+    const rows = this.db
+      .prepare(
+        "SELECT * FROM event ORDER BY COALESCE(scheduled_at, created_at) DESC",
+      )
+      .all() as unknown as EventRow[];
+    return rows.map(toEvent);
+  }
+
   setEventStatus(id: number, status: EventStatus): void {
     this.db.prepare("UPDATE event SET status = ? WHERE id = ?").run(status, id);
   }
