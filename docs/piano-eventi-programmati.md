@@ -44,8 +44,23 @@ dietro c'è un account e un database.
 
 ### 1. Persistenza (nuovo)
 
-Introdurre un database (SQLite per iniziare — file singolo, zero infra sul NAS;
-migrabile a Postgres in fase cloud). Due tabelle minime:
+**Scelta: SQLite via `node:sqlite`** (modulo integrato in Node 22). Deciso per
+la fase attuale — deploy self-hosted, **un solo container** sul NAS:
+
+- **Zero dipendenze**: il server resta `ws` + `tsx`. Nessun modulo nativo da
+  compilare su Alpine (musl), nessun cambio al Dockerfile.
+- **Un file, non un servizio**: coerente col «un solo container», backup =
+  snapshot Synology; il file DB va su **volume montato** (non nel layer immagine).
+- **ACID + WAL**: transazioni per lo scalo dei crediti; verificato su Node 22.22.
+- Caveat: `node:sqlite` è marcato *experimental* → emette un `ExperimentalWarning`
+  (silenziabile con `--disable-warning=ExperimentalWarning` nello start) e l'API
+  potrebbe cambiare tra major di Node. Mitigazione sotto.
+- **Astrazione in `db.ts`**: tutte le query dietro un'interfaccia minima, così il
+  passaggio a `better-sqlite3` (se l'experimental desse fastidio) o a
+  **Postgres/Neon** (nella futura fase cloud **multi-istanza**, dove un file
+  locale non basta più) è un cambio contenuto a un solo file, non un rifacimento.
+
+Due tabelle minime:
 
 ```
 organizer(id, email, created_at, credits_seconds?, stripe_customer_id?)
