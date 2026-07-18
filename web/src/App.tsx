@@ -4,11 +4,12 @@ import { Room } from "./components/Room";
 import { EarphoneGate } from "./components/EarphoneGate";
 import { InstallPrompt } from "./components/InstallPrompt";
 import { OrganizerApp } from "./components/OrganizerApp";
+import { Configuratore } from "./components/Configuratore";
 import { newRoomId } from "./lib/roomName";
 
-/** L'area organizzatore vive su una rotta dedicata, fuori dal flusso pubblico. */
-function isOrganizerRoute(): boolean {
-  return location.pathname.replace(/\/+$/, "") === "/organizer";
+/** Confronta il path corrente (senza slash finali) con una rotta statica. */
+function pathIs(route: string): boolean {
+  return location.pathname.replace(/\/+$/, "") === route;
 }
 
 /**
@@ -87,8 +88,9 @@ export default function App() {
     setEarphonesReady(false);
   };
 
-  // Rotta /organizer: pannello interno, indipendente da stanza/onboarding.
-  if (isOrganizerRoute()) return <OrganizerApp />;
+  // Rotte statiche, indipendenti da stanza/onboarding.
+  if (pathIs("/organizer")) return <OrganizerApp />;
+  if (pathIs("/configuratore")) return <Configuratore />;
 
   return (
     <>
