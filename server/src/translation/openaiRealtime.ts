@@ -6,6 +6,7 @@ import type {
   TranslationSession,
   UtteranceCallbacks,
 } from "./provider.ts";
+import { SegmentDedup } from "./dedup.ts";
 
 const REALTIME_URL = "wss://api.openai.com/v1/realtime";
 const SAMPLE_RATE = 24000;
@@ -199,6 +200,38 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
     let responseSpeaker = "";
     const attributedSpeaker = () => responseSpeaker || currentSpeaker;
 
+    // Dedup dell'audio ripetuto dal loop del motore (vedi dedup.ts). Stato
+    // per-risposta: finché il destino della risposta è "pending" i chunk audio
+    // si accumulano in `pendingAudio` invece di essere inoltrati; alla prima
+    // divergenza della trascrizione si emette tutto (segmento nuovo), se resta
+    // un doppione si scarta.
+    const dedup = new SegmentDedup();
+    let audioDecision: "keep" | "drop" | "pending" = "keep";
+    let pendingAudio: string[] = [];
+    let responseTranscript = "";
+
+    // Emette i chunk audio accumulati e passa in modalità streaming diretto.
+    const flushPendingAudio = () => {
+      const speaker = attributedSpeaker();
+      for (const chunk of pendingAudio) callbacks.onAudio(chunk, speaker);
+      pendingAudio = [];
+    };
+
+    // Applica la decisione del dedup alla trascrizione accumulata: appena il
+    // segmento è giudicato "nuovo" libera l'audio in coda; se è un doppione lo
+    // butta. No-op finché la decisione resta sospesa.
+    const applyDedup = (done: boolean) => {
+      if (audioDecision !== "pending") return;
+      const decision = dedup.evaluate(responseTranscript, done);
+      if (decision === "keep") {
+        audioDecision = "keep";
+        flushPendingAudio();
+      } else if (decision === "drop") {
+        audioDecision = "drop";
+        pendingAudio = [];
+      }
+    };
+
     ws.on("message", (raw) => {
       let event: { type?: string; [key: string]: unknown };
 
@@ -222,10 +255,23 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
         case "response.created": {
           responseActive = true;
           responseSpeaker = segmentSpeakers.shift() ?? currentSpeaker;
+          // Nuova risposta: reimposta il dedup. Senza una baseline recente si
+          // parte "keep" (audio in diretta, latenza zero); con una baseline
+          // recente si parte "pending" e si bufferizza finché non si sa se è
+          // un doppione.
+          responseTranscript = "";
+          pendingAudio = [];
+          audioDecision = dedup.begin();
           break;
         }
         case "response.done":
         case "response.cancelled": {
+          // Risposta conclusa senza che il dedup si sia deciso (es. audio senza
+          // trascrizione): meglio emettere che scartare a torto.
+          if (audioDecision === "pending") {
+            audioDecision = "keep";
+            flushPendingAudio();
+          }
           responseActive = false;
           responseSpeaker = "";
           break;
@@ -234,14 +280,23 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
         case "response.output_audio.delta":
         case "response.audio.delta": {
           const delta = typeof event.delta === "string" ? event.delta : "";
-          if (delta) callbacks.onAudio(delta, attributedSpeaker());
+          if (!delta) break;
+          if (audioDecision === "keep") {
+            callbacks.onAudio(delta, attributedSpeaker());
+          } else if (audioDecision === "pending") {
+            pendingAudio.push(delta);
+          }
+          // "drop": l'audio del doppione viene ignorato.
           break;
         }
 
         case "response.output_audio_transcript.delta":
         case "response.audio_transcript.delta": {
           const delta = typeof event.delta === "string" ? event.delta : "";
-          if (delta) callbacks.onTranscript(delta, false, attributedSpeaker());
+          if (!delta) break;
+          responseTranscript += delta;
+          applyDedup(false);
+          callbacks.onTranscript(delta, false, attributedSpeaker());
           break;
         }
 
@@ -249,6 +304,17 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
         case "response.audio_transcript.done": {
           const transcript =
             typeof event.transcript === "string" ? event.transcript : "";
+          responseTranscript = transcript;
+          applyDedup(true);
+          if (audioDecision === "drop") {
+            // Doppione scartato: prolunga la finestra così un loop a raffica
+            // resta soppresso finché i doppioni continuano ad arrivare fitti.
+            dedup.touch();
+          } else {
+            // Solo un segmento davvero emesso diventa baseline: i doppioni
+            // successivi si confrontano con l'originale, non tra loro.
+            dedup.commitKept(transcript);
+          }
           callbacks.onTranscript(transcript, true, attributedSpeaker());
           break;
         }
@@ -288,6 +354,9 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
       targetLang,
 
       setSpeaker(speakerId: string) {
+        // Cambio di parlante: azzera la baseline del dedup, perché la stessa
+        // frase detta da un'altra persona è legittima e non va scartata.
+        if (speakerId !== currentSpeaker) dedup.reset();
         currentSpeaker = speakerId;
       },
 

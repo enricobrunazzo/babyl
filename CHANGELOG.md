@@ -9,16 +9,27 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Corretto
 
-- **Sottotitoli: niente più muro di ripetizioni durante l'evento.**
-  Segnalazione utente: durante un evento il messaggio tradotto compariva
-  ripetuto molte volte di fila (es. «App testing session. App testing session.
-  App testing session. …»). È una deriva del motore realtime, che va in loop e
-  ritraduce lo stesso segmento — sia entro un unico segmento finale sia su
-  segmenti consecutivi, tipicamente sull'audio sovrapposto che il VAD richiude
-  sulle pause brevi. Il client ora scarta le frasi finali identiche consecutive
-  (confronto normalizzato per maiuscole/spazi/punteggiatura, anche a cavallo di
-  segmenti), collassando il loop in un'unica occorrenza; le ripetizioni
-  legittime non consecutive restano. (`web/src/lib/roomClient.ts`)
+- **Niente più muro di ripetizioni durante l'evento (audio e sottotitoli).**
+  Segnalazione utente: durante un evento il messaggio tradotto veniva ripetuto
+  molte volte di fila — sia a voce sia nei sottotitoli (es. «App testing
+  session. App testing session. App testing session. …»). È una deriva del
+  motore realtime, che va in loop e ritraduce lo stesso segmento, tipicamente
+  sull'audio sovrapposto che il VAD richiude sulle pause brevi. Ora il dedup
+  agisce su entrambi i fronti:
+  - **Audio (server).** Il provider confronta la trascrizione di ogni risposta
+    con quella dell'ultimo segmento emesso entro una finestra temporale
+    (`OPENAI_DEDUP_WINDOW_MS`, default 4 s): se è un doppione ne scarta l'audio
+    prima di inoltrarlo, altrimenti lo emette in diretta. La finestra misura
+    l'intervallo *tra* le ripetizioni, così un loop a raffica resta soppresso
+    finché dura, mentre una ripetizione *voluta* dopo una pausa viene mantenuta;
+    al cambio di parlante la baseline si azzera. Nel caso normale (nessun
+    doppione recente) l'audio non subisce latenza aggiuntiva.
+    (`server/src/translation/{dedup,openaiRealtime}.ts`)
+  - **Sottotitoli (client).** Il client scarta comunque le frasi finali
+    identiche consecutive (confronto normalizzato per maiuscole/spazi/
+    punteggiatura, sia entro un singolo segmento sia a cavallo di segmenti),
+    collassando il loop in un'unica occorrenza; le ripetizioni legittime non
+    consecutive restano. (`web/src/lib/roomClient.ts`)
 - **Traduzione fedele, non spiegazione del concetto.** Segnalazione utente:
   parlando in italiano, invece di tradurre alla lettera in francese il motore
   restituiva una spiegazione/parafrasi del senso di quanto detto nella lingua
