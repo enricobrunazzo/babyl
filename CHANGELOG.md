@@ -9,6 +9,16 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Corretto
 
+- **Sottotitoli: niente più muro di ripetizioni durante l'evento.**
+  Segnalazione utente: durante un evento il messaggio tradotto compariva
+  ripetuto molte volte di fila (es. «App testing session. App testing session.
+  App testing session. …»). È una deriva del motore realtime, che va in loop e
+  ritraduce lo stesso segmento — sia entro un unico segmento finale sia su
+  segmenti consecutivi, tipicamente sull'audio sovrapposto che il VAD richiude
+  sulle pause brevi. Il client ora scarta le frasi finali identiche consecutive
+  (confronto normalizzato per maiuscole/spazi/punteggiatura, anche a cavallo di
+  segmenti), collassando il loop in un'unica occorrenza; le ripetizioni
+  legittime non consecutive restano. (`web/src/lib/roomClient.ts`)
 - **Traduzione fedele, non spiegazione del concetto.** Segnalazione utente:
   parlando in italiano, invece di tradurre alla lettera in francese il motore
   restituiva una spiegazione/parafrasi del senso di quanto detto nella lingua

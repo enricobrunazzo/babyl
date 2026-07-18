@@ -94,6 +94,33 @@ const MAX_RECONNECT_ATTEMPTS = 8;
 const CAPTURE_CHUNK_SAMPLES = 2400;
 
 /**
+ * Normalizza un segmento di sottotitolo per confrontarlo con il precedente:
+ * minuscolo, spazi compattati e punteggiatura di contorno rimossa, così che
+ * "App testing session." e "app testing session" risultino lo stesso segmento
+ * ai fini del dedup dei doppioni consecutivi.
+ */
+function normalizeSegment(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[\s]+/g, " ")
+    .replace(/^[\p{P}\s]+|[\p{P}\s]+$/gu, "")
+    .trim();
+}
+
+/**
+ * Spezza un testo nelle frasi che lo compongono, conservando la punteggiatura
+ * finale. Serve al dedup dei sottotitoli: il motore realtime può ripetere la
+ * stessa frase più volte dentro un unico segmento, e confrontarle una a una
+ * permette di collassare le ripetizioni consecutive. Un testo senza
+ * punteggiatura resta una singola frase.
+ */
+function splitSentences(text: string): string[] {
+  const matches = text.match(/[^.!?]+[.!?]*/g);
+  if (!matches) return [];
+  return matches.map((sentence) => sentence.trim()).filter(Boolean);
+}
+
+/**
  * Client di stanza: WebSocket per segnalazione E audio (half-duplex).
  *
  * Il microfono viene catturato via AudioWorklet a 24 kHz e inviato al server
@@ -149,6 +176,10 @@ export class RoomClient {
   // tradotti; i testi finali si accumulano, il parziale corrente si appende.
   private subtitleFinal = "";
   private subtitlePartial = "";
+  // Ultimo segmento finale accodato, normalizzato: serve a scartare i doppioni
+  // consecutivi quando il motore realtime va in loop e ritraduce lo stesso
+  // segmento più volte (vedi dedup nel gestore "transcript").
+  private lastFinalSegment = "";
 
   private state: RoomState = {
     status: "idle",
@@ -676,9 +707,26 @@ export class RoomClient {
         if (this.state.subtitle?.speakerId !== message.speakerId) {
           this.subtitleFinal = "";
           this.subtitlePartial = "";
+          this.lastFinalSegment = "";
         }
         if (message.final) {
-          this.subtitleFinal = `${this.subtitleFinal} ${message.text}`.trim();
+          // Il motore realtime a volte va in loop e ripete la stessa frase
+          // molte volte — sia entro un singolo segmento finale sia su segmenti
+          // consecutivi (tipico con l'audio sovrapposto che il VAD richiude
+          // sulle pause brevi). Senza dedup il sottotitolo diventa un muro di
+          // ripetizioni ("App testing session. App testing session. …"). Si
+          // scartano le frasi identiche consecutive, confrontandole anche con
+          // l'ultima frase già accodata dal segmento precedente.
+          const kept: string[] = [];
+          for (const sentence of splitSentences(message.text)) {
+            const normalized = normalizeSegment(sentence);
+            if (!normalized || normalized === this.lastFinalSegment) continue;
+            kept.push(sentence);
+            this.lastFinalSegment = normalized;
+          }
+          if (kept.length > 0) {
+            this.subtitleFinal = `${this.subtitleFinal} ${kept.join(" ")}`.trim();
+          }
           this.subtitlePartial = "";
         } else {
           this.subtitlePartial += message.text;
@@ -741,6 +789,7 @@ export class RoomClient {
       // Nuovo parlante: via i sottotitoli dell'enunciato precedente.
       this.subtitleFinal = "";
       this.subtitlePartial = "";
+      this.lastFinalSegment = "";
       // Avvia il cronometro latenza se a parlare è un altro peer.
       if (channel.speakerId !== this.state.self?.id) {
         this.speakerStartedAt = performance.now();
