@@ -12,9 +12,11 @@ const CANCEL_THRESHOLD_PX = 80;
  * **blocca** il microfono a mani libere invece di chiuderlo: è il gesto "scorri
  * a destra per bloccare", nello stile dello slide-to-unlock. Utile quando si
  * parla a lungo (relatore, stanza) senza tenere premuto. Attivo solo se
- * `onLock` è fornito.
+ * `onLock` è fornito. Corrisponde alla corsa visiva della maniglia nel comando
+ * PTT (larghezza pillola − maniglia), così a fine gesto il microfono arriva
+ * esattamente sopra il lucchetto.
  */
-const LOCK_THRESHOLD_PX = 120;
+const LOCK_THRESHOLD_PX = 240;
 
 export interface HoldToTalk {
   /** true quando lo scorrimento ha armato l'annullamento (rilascia per annullare). */

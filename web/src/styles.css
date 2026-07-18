@@ -929,7 +929,11 @@ main {
 
 /* Maniglia = microfono di dimensione media: è il pulsante. Scorre verso destra. */
 .ptt-pill-handle {
-  position: relative;
+  position: absolute;
+  top: 6px;
+  /* Scorre da sinistra (6px) fino a filo destro, sopra il lucchetto. La corsa
+     si adatta alla larghezza reale della pillola: 100% − maniglia − margini. */
+  left: calc(6px + var(--p, 0) * (100% - 60px));
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -940,8 +944,7 @@ main {
   background: var(--free);
   color: #04180d;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-  transform: translateX(calc(var(--p, 0) * 186px));
-  transition: transform 0.06s linear, background 0.2s ease, color 0.2s ease;
+  transition: left 0.06s linear, background 0.2s ease, color 0.2s ease;
 }
 
 /* Lucchetto bersaglio a destra: grigio, diventa rosso a blocco attivo. */
@@ -980,7 +983,12 @@ main {
   color: var(--text);
 }
 
-/* Sta per bloccare (scorri a destra fino in fondo): il lucchetto si illumina. */
+/* Sta per bloccare (maniglia arrivata sopra il lucchetto): la pillola si arma
+   con un bordo verde — feedback visibile anche se il lucchetto è coperto. */
+.ptt-pill.lock-armed {
+  box-shadow: inset 0 0 0 2px var(--free), 0 0 28px rgba(34, 197, 94, 0.4);
+}
+
 .ptt-pill.lock-armed .ptt-pill-lock {
   color: var(--free);
   transform: scale(1.18);
