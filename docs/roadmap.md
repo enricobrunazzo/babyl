@@ -57,7 +57,9 @@ trasporto audio a frame binari.
 
 - [ ] **Account e prepagato** — auth + database, Stripe, metering dei secondi di
   inferenza per stanza/sessione. Il punto di misura esiste già:
-  `TranslationProvider` + `/metrics`. **Complessità: alta.**
+  `TranslationProvider` + `/metrics`. **Complessità: alta.** Piano dettagliato
+  (eventi programmati + account organizzatore) in
+  [`piano-eventi-programmati.md`](piano-eventi-programmati.md).
 - [ ] **Controllo accessi stanza (`roomKey` opzionale)** — chiave nel `join` per
   stanze private. **Complessità: bassa.** Tocca: protocollo, `index.ts`, `rooms.ts`, UI.
 - [ ] **Scala su host cloud** — spostare il container quando il NAS non basta;
