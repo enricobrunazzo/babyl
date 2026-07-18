@@ -9,7 +9,7 @@
     "start": "tsx src/index.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/rooms.test.ts"
+    "test": "node --disable-warning=ExperimentalWarning --import tsx --test src/*.test.ts"
   },
   "dependencies": {
     "tsx": "^4.19.2",
