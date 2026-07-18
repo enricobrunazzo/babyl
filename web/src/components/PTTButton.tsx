@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { PttState } from "../lib/roomClient";
 import { useHoldToTalk } from "../lib/holdToTalk";
 import { LockIcon, MicIcon } from "./icons";
@@ -64,6 +64,14 @@ export function PTTButton({
 }: Props) {
   // Blocco a mani libere: il microfono resta aperto dopo il rilascio.
   const [locked, setLocked] = useState(false);
+  // Riferimento alla pillola: alla pressione ne misuriamo la larghezza reale e
+  // impostiamo la corsa (`--travel`) della maniglia, così lo scorrimento resta
+  // fluido (transform su GPU) e adattivo su qualsiasi schermo.
+  const pillRef = useRef<HTMLButtonElement>(null);
+  const setTravel = () => {
+    const el = pillRef.current;
+    if (el) el.style.setProperty("--travel", `${el.clientWidth - 60}px`);
+  };
   const { armed, lockArmed, lockProgress, press, move, release, cancel, reset } =
     useHoldToTalk({
       onPress,
@@ -138,6 +146,7 @@ export function PTTButton({
   return (
     <div className="ptt">
       <button
+        ref={pillRef}
         type="button"
         className={`ptt-pill ptt-${state}${armedNow ? " armed" : ""}${
           lockArmed ? " lock-armed" : ""
@@ -154,7 +163,10 @@ export function PTTButton({
             stopLock();
             return;
           }
-          if (!blocked) press(event.clientX, event.clientY);
+          if (!blocked) {
+            setTravel();
+            press(event.clientX, event.clientY);
+          }
         }}
         onPointerMove={(event) => {
           if (!locked) move(event.clientX, event.clientY);

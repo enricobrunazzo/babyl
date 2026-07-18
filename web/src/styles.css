@@ -908,8 +908,13 @@ main {
   border-radius: var(--r-pill);
   background: linear-gradient(to right, var(--free), rgba(34, 197, 94, 0.3));
   opacity: 0;
-  transition: width 0.06s linear, opacity 0.2s ease;
+  transition: width 0.16s ease, opacity 0.2s ease;
   pointer-events: none;
+}
+
+/* Durante il trascinamento il riempimento segue il dito senza ritardo. */
+.ptt-pill:active .ptt-pill-fill {
+  transition: opacity 0.2s ease;
 }
 
 /* Testo di stato al centro: premi per parlare / scorri per bloccare / … */
@@ -931,9 +936,7 @@ main {
 .ptt-pill-handle {
   position: absolute;
   top: 6px;
-  /* Scorre da sinistra (6px) fino a filo destro, sopra il lucchetto. La corsa
-     si adatta alla larghezza reale della pillola: 100% − maniglia − margini. */
-  left: calc(6px + var(--p, 0) * (100% - 60px));
+  left: 6px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
@@ -944,7 +947,18 @@ main {
   background: var(--free);
   color: #04180d;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
-  transition: left 0.06s linear, background 0.2s ease, color 0.2s ease;
+  /* Scorre verso destra fino sopra il lucchetto. Usa transform (GPU) e una
+     corsa `--travel` misurata sulla larghezza reale: fluido e adattivo. */
+  transform: translateX(calc(var(--p, 0) * var(--travel, 240px)));
+  will-change: transform;
+  transition: transform 0.16s ease, background 0.2s ease, color 0.2s ease;
+}
+
+/* Durante il trascinamento (dito premuto) niente transizione sulla posizione:
+   la maniglia segue il dito 1:1. La transizione torna al rilascio, per il
+   rientro morbido verso sinistra. */
+.ptt-pill:active .ptt-pill-handle {
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 /* Lucchetto bersaglio a destra: grigio, diventa rosso a blocco attivo. */
