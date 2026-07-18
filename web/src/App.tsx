@@ -6,6 +6,7 @@ import { InstallPrompt } from "./components/InstallPrompt";
 import { OrganizerApp } from "./components/OrganizerApp";
 import { Configuratore } from "./components/Configuratore";
 import { AdminApp } from "./components/AdminApp";
+import { Manuale } from "./components/Manuale";
 import { newRoomId } from "./lib/roomName";
 
 /** Confronta il path corrente (senza slash finali) con una rotta statica. */
@@ -93,6 +94,7 @@ export default function App() {
   if (pathIs("/organizer")) return <OrganizerApp />;
   if (pathIs("/configuratore")) return <Configuratore />;
   if (pathIs("/admin")) return <AdminApp />;
+  if (pathIs("/manuale")) return <Manuale />;
 
   return (
     <>

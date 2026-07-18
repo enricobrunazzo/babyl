@@ -2189,3 +2189,233 @@ main {
 .admin-foot a {
   color: var(--accent-hover);
 }
+
+/* ---------- Manuale (/manuale) ---------- */
+
+.man {
+  max-width: 780px;
+  gap: 0;
+  padding: 40px 24px 60px;
+}
+
+.man-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+
+.man-hero h1 {
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.man-hero p {
+  max-width: 48ch;
+  color: var(--text-dim);
+  font-size: 1.05rem;
+}
+
+.man-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  padding: 20px 0 8px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 2;
+}
+
+.man-toc a {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  text-decoration: none;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.man-toc a:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.man-sec {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.man-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-hover);
+}
+
+.man-sec h2 {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.man-lead {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--text-dim);
+  max-width: 62ch;
+}
+
+/* Cards modalità / ruoli */
+.man-cards,
+.man-roles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.man-roles {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 640px) {
+  .man-cards,
+  .man-roles {
+    grid-template-columns: 1fr;
+  }
+}
+
+.man-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  color: var(--accent-hover);
+}
+
+.man-card h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.man-card p {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* Passi microfono */
+.man-steps {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.man-steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.man-steps b {
+  color: var(--text);
+}
+
+.man-ico {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-weak);
+  color: var(--accent-hover);
+}
+
+.man-ol {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 20px;
+  font-size: 0.98rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.man-ol b {
+  color: var(--text);
+}
+
+.man-ol code,
+.man-sec code {
+  background: var(--surface-2);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 0.9em;
+  color: var(--text);
+}
+
+.man-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 15px;
+}
+
+.man-note b {
+  color: var(--text);
+}
+
+/* Sezione principio, in evidenza */
+.man-principle {
+  border-bottom: none;
+  align-items: center;
+  text-align: center;
+}
+
+.man-principle h2 {
+  font-size: 2rem;
+  color: var(--logo-red);
+}
+
+.man-principle .man-lead {
+  max-width: 56ch;
+}
+
+.man-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 28px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
