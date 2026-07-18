@@ -737,3 +737,21 @@ test("metrics: conta byte e ms d'inferenza, i totali sopravvivono alla stanza", 
   assert.equal(after.totals.outMs, data.length / 48);
   assert.ok(after.estCostUsd >= 0);
 });
+
+test("idratazione da evento: la stanza adotta tempistica e modalità salvate", () => {
+  const mgr = new RoomManager(null, "streaming", (slug) =>
+    slug === "piazza" ? { timing: "consecutive", mode: "event" } : null,
+  );
+  const s = fakeSocket();
+  mgr.get("piazza").join(peer("a", "it"), s as unknown as WebSocket);
+  const welcome = lastOfType(s, "welcome");
+  assert.equal(welcome?.translation.timing, "consecutive");
+  assert.equal(welcome?.mode, "event");
+
+  // Slug senza evento corrispondente: default del server invariati.
+  const s2 = fakeSocket();
+  mgr.get("altra").join(peer("b", "it"), s2 as unknown as WebSocket);
+  const w2 = lastOfType(s2, "welcome");
+  assert.equal(w2?.translation.timing, "streaming");
+  assert.equal(w2?.mode, "conversation");
+});

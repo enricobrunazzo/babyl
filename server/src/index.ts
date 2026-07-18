@@ -30,12 +30,25 @@ function parseTiming(value: string | undefined): TranslationTiming {
 
 const translationProvider = providerFromEnv();
 const defaultTiming = parseTiming(process.env.TRANSLATION_TIMING);
-const rooms = new RoomManager(translationProvider, defaultTiming);
 
-// Eventi programmati (Fase 1): API + persistenza attive solo se è configurato un
-// token admin. Senza, il server resta identico a oggi (nessun DB, nessuna API).
+// Eventi programmati: API + persistenza attive solo se è configurato un token
+// admin. Senza, il server resta identico a oggi (nessun DB, nessuna API).
 const adminToken = process.env.BABYL_ADMIN_TOKEN;
 const db = adminToken ? new Db() : null;
+
+// Idratazione delle stanze da evento: un join su uno slug registrato adotta la
+// tempistica salvata e nasce in modalità evento (fetta 3). Assente il DB, le
+// stanze restano effimere come prima.
+const rooms = new RoomManager(
+  translationProvider,
+  defaultTiming,
+  db
+    ? (slug) => {
+        const event = db.getEventBySlug(slug);
+        return event ? { timing: event.timing, mode: "event" } : null;
+      }
+    : null,
+);
 
 const staticHandler = createStaticHandler(
   process.env.STATIC_DIR ??

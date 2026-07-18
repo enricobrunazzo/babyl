@@ -106,7 +106,11 @@ export class Room {
     readonly id: string,
     private provider: TranslationProvider | null,
     private timing: TranslationTiming = "streaming",
+    // Modalità iniziale: "event" quando la stanza è idratata da un evento
+    // programmato, così è già una conferenza prima ancora del primo ingresso.
+    initialMode: RoomMode = "conversation",
   ) {
+    this.mode = initialMode;
     this.idleSweep = setInterval(() => this.closeIdleSessions(), IDLE_SWEEP_MS);
     // Non tenere vivo il processo per questo timer (test, shutdown).
     this.idleSweep.unref?.();
@@ -635,6 +639,12 @@ export interface MetricsSnapshot {
   perRoom: Record<string, RoomStats>;
 }
 
+/** Configurazione con cui idratare una stanza a partire da un evento salvato. */
+export interface EventConfig {
+  timing: TranslationTiming;
+  mode: RoomMode;
+}
+
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private startedAt = Date.now();
@@ -649,12 +659,26 @@ export class RoomManager {
   constructor(
     private provider: TranslationProvider | null = null,
     private defaultTiming: TranslationTiming = "streaming",
+    /**
+     * Idratazione da evento programmato: dato lo slug della stanza, ritorna la
+     * configurazione salvata (tempistica + modalità) o null. Iniettata dal
+     * server quando l'API eventi è attiva; assente = comportamento di prima.
+     */
+    private eventLookup: ((slug: string) => EventConfig | null) | null = null,
   ) {}
 
   get(id: string): Room {
     let room = this.rooms.get(id);
     if (!room) {
-      room = new Room(id, this.provider, this.defaultTiming);
+      // Alla prima creazione, se lo slug corrisponde a un evento la stanza
+      // nasce già con la tempistica scelta e in modalità evento.
+      const ev = this.eventLookup?.(id) ?? null;
+      room = new Room(
+        id,
+        this.provider,
+        ev?.timing ?? this.defaultTiming,
+        ev?.mode ?? "conversation",
+      );
       this.rooms.set(id, room);
     }
     return room;

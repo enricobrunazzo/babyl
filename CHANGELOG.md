@@ -67,6 +67,18 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ### Aggiunto
 
+- **Eventi programmati + area organizzatore.** Si possono creare eventi in
+  anticipo con link/QR stabile, tramite l'**API** `/api/events` e l'**area
+  organizzatore** su `/organizer` (form titolo/lingue/tempistica/data, lista con
+  stato e QR). Persistenza su **SQLite** col modulo integrato `node:sqlite`
+  (schema organizzatori/eventi, WAL, micro-migratore) in `server/src/db.ts`;
+  attivazione **feature-gated** su `BABYL_ADMIN_TOKEN` (senza, il server è
+  identico a prima). Un **join** su uno slug registrato **idrata la stanza**
+  con la tempistica salvata e la modalità evento. Il flusso del pubblico
+  (WebSocket, audio) resta invariato. Auth organizzatore per email in una fase
+  successiva. (`server/src/db.ts`, `server/src/api.ts`, `server/src/rooms.ts`,
+  `server/src/index.ts`, `web/src/components/OrganizerApp.tsx`,
+  `web/src/lib/organizerApi.ts`)
 - **Correzioni UX dal collaudo.** Quattro rifiniture d'uso quotidiano:
   - **Feedback quando il PTT è negato**: alla risposta `ptt-denied` del server
     il telefono vibra brevemente e compare un avviso transitorio — «canale
