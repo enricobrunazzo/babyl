@@ -63,6 +63,8 @@ interface Props {
    * pre-rilevata, solo nome + consenso), senza switch modalità né campo stanza.
    */
   joinLink: boolean;
+  /** Il link portava `?host=1`: l'utente entra come **relatore** dell'evento. */
+  hostJoin: boolean;
   onRoomChange: (id: string) => void;
   onEnter: (profile: Profile) => void;
 }
@@ -82,6 +84,7 @@ export function Onboarding({
   roomId,
   eventJoin,
   joinLink,
+  hostJoin,
   onRoomChange,
   onEnter,
 }: Props) {
@@ -194,6 +197,65 @@ export function Onboarding({
           </label>
           {consentField}
           <button type="submit" className="enter-button" disabled={!consent}>
+            {t.enter}
+          </button>
+          <p className="disclaimer">{t.disclaimer}</p>
+        </form>
+      </main>
+    );
+  }
+
+  // --- Relatore di un evento (link con ?host=1, dall'area organizzatore) ---
+  if (hostJoin) {
+    const canHost = consent && nickname.trim().length > 0;
+    const enterHost = () => {
+      if (!canHost) return;
+      const profile: Profile = {
+        nickname: nickname.trim(),
+        lang,
+        mode: "event",
+        role: "speaker",
+      };
+      persistProfile(profile);
+      onEnter(profile);
+    };
+    return (
+      <main className="onboarding" dir={t.dir}>
+        <header className="brand">
+          <BabylMark size={52} className="brand-mark" />
+          <h1>babyl</h1>
+          <p>{ev.eventCreateHint}</p>
+        </header>
+        <form
+          className="onboarding-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            enterHost();
+          }}
+        >
+          <p className="event-role-badge">
+            <RoomIcon size={15} /> {roomId}
+          </p>
+          <label className="field">
+            <span>{t.listenLangLabel}</span>
+            <small className="field-help">{t.listenLangHelp}</small>
+            {langSelect(lang, setLang, t.selectFirstLang)}
+          </label>
+          <label className="field">
+            <span>{t.nameLabel}</span>
+            <input
+              type="text"
+              name="nickname"
+              autoComplete="given-name"
+              autoFocus
+              maxLength={40}
+              placeholder={t.namePlaceholder}
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+            />
+          </label>
+          {consentField}
+          <button type="submit" className="enter-button" disabled={!canHost}>
             {t.enter}
           </button>
           <p className="disclaimer">{t.disclaimer}</p>

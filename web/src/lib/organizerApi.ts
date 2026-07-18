@@ -87,3 +87,8 @@ export async function createEvent(input: NewEventInput): Promise<OrgEvent> {
 export function eventPublicLink(slug: string): string {
   return `${location.origin}/?room=${encodeURIComponent(slug)}&event=1&join=1`;
 }
+
+/** Link del relatore: apre la stanza dell'evento come chi parla (host). */
+export function eventHostLink(slug: string): string {
+  return `${location.origin}/?room=${encodeURIComponent(slug)}&host=1`;
+}

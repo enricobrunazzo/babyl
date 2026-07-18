@@ -1684,3 +1684,27 @@ main {
   justify-content: space-between;
   gap: 12px;
 }
+
+/* Azione «avvia come relatore» nella card evento */
+.org-host-btn {
+  display: block;
+  text-align: center;
+  padding: 11px 14px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.org-host-btn:hover {
+  background: var(--accent-hover);
+}
+
+.org-share-label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}

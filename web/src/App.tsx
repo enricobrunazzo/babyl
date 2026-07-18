@@ -41,10 +41,19 @@ function joinFromUrl(): boolean {
   return new URLSearchParams(location.search).get("join") === "1";
 }
 
+/**
+ * Il link `?host=1` (dall'area organizzatore) apre la stanza dell'evento come
+ * **relatore**: form snello, ruolo speaker, modalità evento.
+ */
+function hostFromUrl(): boolean {
+  return new URLSearchParams(location.search).get("host") === "1";
+}
+
 export default function App() {
   const [roomId, setRoomId] = useState(roomFromUrl);
   const [eventJoin] = useState(eventFromUrl);
   const [joinLink] = useState(joinFromUrl);
+  const [hostJoin] = useState(hostFromUrl);
   // Stanza privata per la modalità single-device: l'audio torna solo al
   // dispositivo stesso, quindi non deve collidere con una stanza pubblica.
   const [soloRoom] = useState(
@@ -103,6 +112,7 @@ export default function App() {
           roomId={roomId}
           eventJoin={eventJoin}
           joinLink={joinLink}
+          hostJoin={hostJoin}
           onRoomChange={changeRoom}
           onEnter={setProfile}
         />

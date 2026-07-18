@@ -6,6 +6,7 @@ import {
   ApiError,
   clearToken,
   createEvent,
+  eventHostLink,
   eventPublicLink,
   getEmail,
   getToken,
@@ -357,6 +358,16 @@ function EventCard({ event }: { event: OrgEvent }) {
         )}
       </div>
 
+      <a
+        className="org-host-btn"
+        href={eventHostLink(event.slug)}
+        target="_blank"
+        rel="noopener"
+      >
+        ▶ Avvia come relatore
+      </a>
+
+      <div className="org-share-label">Link per il pubblico (condividi o QR)</div>
       <div className="org-link">
         <input readOnly value={link} onFocus={(e) => e.target.select()} />
         <button type="button" onClick={copy}>
