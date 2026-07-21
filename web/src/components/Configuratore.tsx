@@ -10,13 +10,13 @@ import { BabylMark } from "./BabylLogo";
  */
 
 const ENGINES = [
-  { id: "realtime", label: "gpt-realtime", in: 0.06, out: 0.24 },
-  { id: "mini", label: "mini*", in: 0.024, out: 0.1 },
+  { id: "mini", label: "gpt-realtime-2.1-mini", in: 0.019, out: 0.075 },
+  { id: "realtime", label: "gpt-realtime-2.1", in: 0.06, out: 0.24 },
   { id: "pipeline", label: "pipeline*", in: 0.006, out: 0.014 },
 ] as const;
 
-const IN_RATE = 0.06;
-const OUT_RATE = 0.24;
+const IN_RATE = 0.019;
+const OUT_RATE = 0.075;
 const KBIT_PER_LISTENER = 384;
 
 const fmtEur = (v: number) =>
@@ -36,7 +36,7 @@ export function Configuratore() {
   const [fx, setFx] = useState(0.92);
   const [inRate, setInRate] = useState(IN_RATE);
   const [outRate, setOutRate] = useState(OUT_RATE);
-  const [engine, setEngine] = useState<string | null>("realtime");
+  const [engine, setEngine] = useState<string | null>("mini");
 
   const engMin = langs * mins;
   const inUsd = engMin * inRate;
@@ -114,8 +114,7 @@ export function Configuratore() {
               />
             </div>
             <small className="cfg-hint">
-              in · out. <b>*</b> mini e pipeline sono stime da verificare sui
-              listini.
+              in · out. <b>*</b> pipeline è una stima da verificare sui listini.
             </small>
           </div>
 
@@ -260,8 +259,8 @@ export function Configuratore() {
       </div>
 
       <p className="cfg-foot">
-        Tariffe di default (gpt-realtime, $0,06/$0,24) da{" "}
-        <code>server/src/rooms.ts</code>. I preset mini e pipeline sono stime.
+        Tariffe di default (gpt-realtime-2.1-mini, $0,019/$0,075) da{" "}
+        <code>server/src/rooms.ts</code>. Il preset pipeline è una stima.
         Numeri di prestazione: ordini di grandezza, non load-test.
       </p>
     </main>

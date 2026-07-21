@@ -164,7 +164,7 @@ export function Manuale() {
         <p className="man-lead">
           L'interfaccia e la traduzione seguono la lingua che scegli. La puoi
           cambiare a caldo dalla stanza; per l'arabo il testo passa da destra a
-          sinistra. Sono supportate 14 lingue.
+          sinistra. Sono supportate 15 lingue.
         </p>
       </section>
 

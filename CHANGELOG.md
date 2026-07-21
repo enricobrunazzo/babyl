@@ -7,6 +7,24 @@ progetto adotta il [Versionamento Semantico](https://semver.org/lang/it/).
 
 ## [Non rilasciato]
 
+### Aggiunto
+
+- **Croato tra le lingue supportate.** Aggiunto `hr` (Hrvatski 🇭🇷) come lingua
+  d'ascolto e di traduzione, con interfaccia localizzata (onboarding, stanza,
+  modalità evento) e pluralizzazione slava dedicata. Le lingue supportate
+  passano da 14 a 15. (`shared/languages.ts`, `web/src/lib/{languages,i18n}.ts`)
+
+### Modificato
+
+- **Migrazione al modello Realtime `gpt-realtime-2.1-mini`.** OpenAI ha
+  annunciato la deprecazione dell'intera famiglia `gpt-realtime`/audio (accesso
+  chiuso il 20 gennaio 2027), quindi il default di `OPENAI_REALTIME_MODEL` passa
+  al nuovo modello mini. L'audio costa circa un terzo del `gpt-realtime` pieno
+  ($10/$20 contro $32/$64 per 1M token), perciò sono aggiornate anche le stime
+  di costo della dashboard admin e i preset del configuratore.
+  (`server/src/{translation/openaiRealtime,rooms}.ts`,
+  `web/src/components/Configuratore.tsx`, `docker-compose.yml`, `README.md`)
+
 ### Corretto
 
 - **Niente più muro di ripetizioni durante l'evento (audio e sottotitoli).**

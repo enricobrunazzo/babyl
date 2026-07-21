@@ -734,8 +734,10 @@ export class RoomManager {
         totals.outMs += pair.outMs;
       }
     }
+    // Tariffe del modello di default (gpt-realtime-2.1-mini): l'audio costa
+    // circa un terzo del gpt-realtime pieno ($10/$20 vs $32/$64 per 1M token).
     const estCostUsd =
-      (totals.inMs / 60_000) * 0.06 + (totals.outMs / 60_000) * 0.24;
+      (totals.inMs / 60_000) * 0.019 + (totals.outMs / 60_000) * 0.075;
     return {
       uptimeSec: Math.round((Date.now() - this.startedAt) / 1000),
       rooms: this.rooms.size,

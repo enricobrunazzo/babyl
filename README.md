@@ -40,14 +40,14 @@ babyl/
             ├── roomClient.ts # WebSocket, cattura/riproduzione PCM, half-duplex
             ├── pcm.ts        # Conversioni PCM16 ↔ ArrayBuffer (frame binari)
             ├── languages.ts  # Elenco lingue + rilevamento da navigator.language
-            └── i18n.ts       # Stringhe UI localizzate (14 lingue, RTL per l'arabo)
+            └── i18n.ts       # Stringhe UI localizzate (15 lingue, RTL per l'arabo)
 ```
 
 ## Cosa implementa l'MVP (rif. documento di architettura)
 
 **§2.1 — Onboarding invisibile**
 - Lingua auto-compilata da `navigator.language` (es. `it-IT` → Italiano), menu a tendina minimale per l'override manuale.
-- **Interfaccia localizzata**: il testo dell'app segue la lingua scelta dal partecipante. Chi entra e sceglie *English* vede onboarding e stanza in inglese, chi sceglie *Deutsch* in tedesco, e così via per tutte le 14 lingue supportate (`web/src/lib/i18n.ts`, con fallback all'inglese). In stanza segue la lingua d'ascolto, quindi cambia a caldo anche dal selettore *Lingua di ascolto*; per l'arabo la direzione del testo passa automaticamente a **RTL**.
+- **Interfaccia localizzata**: il testo dell'app segue la lingua scelta dal partecipante. Chi entra e sceglie *English* vede onboarding e stanza in inglese, chi sceglie *Deutsch* in tedesco, e così via per tutte le 15 lingue supportate (`web/src/lib/i18n.ts`, con fallback all'inglese). In stanza segue la lingua d'ascolto, quindi cambia a caldo anche dal selettore *Lingua di ascolto*; per l'arabo la direzione del testo passa automaticamente a **RTL**.
 - Nickname a singolo tap con `autocomplete="given-name"`.
 - Sistema rigorosamente **stateless**: nessun dato in localStorage, nessun account.
 - Un unico pulsante **ENTRA** con disclaimer legale e checkbox di validazione dell'età (16+ o consenso dei genitori).
@@ -102,7 +102,7 @@ babyl/
 | --- | --- | --- |
 | `PORT` | `8787` | Porta HTTP/WebSocket |
 | `OPENAI_API_KEY` | — | Abilita la traduzione simultanea; assente = voce originale |
-| `OPENAI_REALTIME_MODEL` | `gpt-realtime` | Modello Realtime da usare |
+| `OPENAI_REALTIME_MODEL` | `gpt-realtime-2.1-mini` | Modello Realtime da usare |
 | `OPENAI_REALTIME_VOICE` | `marin` | Voce della sintesi |
 | `OPENAI_VAD_THRESHOLD` | `0.6` | Sensibilità del VAD (0–1). Più alta = meno reattiva al rumore di fondo, così nelle pause non partono segmenti spuri che ripeterebbero l'ultimo enunciato. Alzala (es. `0.7`) in sale molto rumorose. |
 | `TRANSLATION_TIMING` | `streaming` | Tempistica di default delle nuove stanze: `streaming` (simultanea), `interview` (frasi intere), `consecutive` (al rilascio del PTT; `release` è un alias). Modificabile in stanza dal selettore UI. |

@@ -70,7 +70,7 @@ export class OpenAIRealtimeProvider implements TranslationProvider {
 
   constructor(
     private apiKey: string,
-    private model = process.env.OPENAI_REALTIME_MODEL ?? "gpt-realtime",
+    private model = process.env.OPENAI_REALTIME_MODEL ?? "gpt-realtime-2.1-mini",
     private voice = process.env.OPENAI_REALTIME_VOICE ?? "marin",
   ) {}
 

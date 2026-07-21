@@ -20,6 +20,7 @@ export const LANGUAGES: Language[] = [
   { code: "ko", nativeName: "한국어", flag: "🇰🇷" },
   { code: "ar", nativeName: "العربية", flag: "🇸🇦" },
   { code: "hi", nativeName: "हिन्दी", flag: "🇮🇳" },
+  { code: "hr", nativeName: "Hrvatski", flag: "🇭🇷" },
 ];
 
 /**

@@ -123,6 +123,15 @@ function plForm(n: number, one: string, few: string, many: string): string {
   return many;
 }
 
+/** Pluralizzazione croata: 1 / 2-4 / resto (come le altre lingue slave). */
+function hrForm(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && !(m100 >= 12 && m100 <= 14)) return few;
+  return many;
+}
+
 /** Pluralizzazione russa: 1 / 2-4 / resto. */
 function ruForm(n: number, one: string, few: string, many: string): string {
   const m10 = n % 10;
@@ -1358,6 +1367,95 @@ const STRINGS: Record<string, UIStrings> = {
     debugFrames: "प्राप्त फ़्रेम",
     debugTotal: "कुल ↑ / ↓",
   },
+
+  hr: {
+    dir: "ltr",
+    tagline: "Simultano prevođenje. Bez preuzimanja, bez računa.",
+    modeGroupLabel: "Način",
+    modeRoom: "U sobi",
+    modeSolo: "Jedan uređaj",
+    langAlabel: "Jezik A (prva osoba)",
+    listenLangLabel: "Jezik na kojem želite slušati",
+    langAhelp: "Jedan od dva jezika koja se govore na uređaju.",
+    listenLangHelp: "Babyl će ostale sudionike prevesti na ovaj jezik.",
+    selectFirstLang: "Odaberite prvi jezik",
+    langBlabel: "Jezik B (druga osoba)",
+    langBhelp: "Drugi jezik: uređaj pri svakom redu prevodi između dvaju jezika.",
+    selectSecondLang: "Odaberite drugi jezik",
+    langsMustDiffer: "Dva jezika moraju biti različita.",
+    nameLabel: "Vaše ime",
+    namePlaceholder: "Kako se zovete?",
+    deviceName: "Uređaj",
+    consent: "Izjavljujem da imam više od 16 godina ili suglasnost roditelja.",
+    roomLabel: "Soba",
+    roomHelp:
+      "Naziv je poveznica: tko je ima, ulazi ovdje. Promijenite ga ili generirajte novi za vlastitu sobu.",
+    roomAria: "Naziv sobe",
+    generate: "Generiraj",
+    enter: "UĐI",
+    disclaimer:
+      "Klikom na UĐI prihvaćate Uvjete pružanja usluge i pristajete na privremenu obradu zvuka radi prevođenja u stvarnom vremenu.",
+    soloHint: "Jedan telefon, dvije osobe: govorite naizmjence, dodirnite ⇄ za zamjenu.",
+    statusIdle: "Inicijalizacija…",
+    statusMic: "Aktivacija mikrofona…",
+    statusConnecting: "Povezivanje sa sobom…",
+    statusConnected: "Povezano",
+    statusReconnecting: "Ponovno povezivanje…",
+    statusClosed: "Odspojeno",
+    statusError: "Pogreška u povezivanju",
+    soloTitle: "Jedan uređaj",
+    participantCount: (n) =>
+      `${n} ${hrForm(n, "sudionik", "sudionika", "sudionika")}`,
+    translationOn: "Simultano prevođenje aktivno",
+    translationOff: "Izvorni glas (prevođenje nije konfigurirano)",
+    listeningIn: "Slušate na:",
+    listenLangInline: "Jezik slušanja",
+    timingInline: "Tempo",
+    share: "Podijeli",
+    leave: "Izađi",
+    timingStreamingLabel: "Razgovor (simultano)",
+    timingStreamingHint: "Prijevod počinje dok govorite, poput TV prevoditelja.",
+    timingInterviewLabel: "Intervju (cijele rečenice)",
+    timingInterviewHint:
+      "Čeka dulje stanke: čisti redovi, bez prekinutih rečenica.",
+    timingConsecutiveLabel: "Konsekutivno (pri otpuštanju)",
+    timingConsecutiveHint: "Prevodi tek kad otpustite gumb: čisti redovi.",
+    shareAria: "Podijeli sobu",
+    inviteTitle: "Pozovite u sobu",
+    inviteHint:
+      "Skenirajte QR kôd ili podijelite poveznicu: tko uđe, odmah je u sobi, bez instaliranja ičega.",
+    copied: "Kopirano ✓",
+    copyLink: "Kopiraj poveznicu",
+    shareEllipsis: "Podijeli…",
+    shareText: "Uđite u sobu",
+    newRoom: "+ Stvori novu sobu",
+    close: "Zatvori",
+    you: "(vi)",
+    soloPttHint: "Držite pritisnut mikrofon jezika govornika",
+    translationError:
+      "Prijevod trenutačno nedostupan (motor preopterećen). Pokušajte ponovno za nekoliko sekundi.",
+    micDeniedTitle: "Mikrofon nedostupan",
+    micDeniedBody:
+      "Babylu je potreban mikrofon za prevođenje u stvarnom vremenu. Dopustite pristup u postavkama preglednika i pokušajte ponovno.",
+    backToStart: "Natrag na početak",
+    pttFree: "Držite za govor",
+    pttTalking: "Govorite…",
+    pttBlocked: "Kanal zauzet",
+    pttSpeaking: (name) => `„${name}” govori…`,
+    micHold: (name) => `Držite za govor na jeziku ${name}`,
+    lockHint: "Povucite za zaključavanje mikrofona",
+    lockedStop: "Mikrofon zaključan · dodirnite za zaustavljanje",
+    cancel: "Odustani",
+    cancelHint: "Povucite za odustajanje",
+    interrupt: "Zaustavi",
+    translationPlaying: "Reprodukcija prijevoda…",
+    debugUp: "Propusnost ↑",
+    debugDown: "Propusnost ↓",
+    debugLatency: "Latencija",
+    debugJitter: "Jitter međuspremnik",
+    debugFrames: "Primljeni okviri",
+    debugTotal: "Ukupno ↑ / ↓",
+  },
 };
 
 /**
@@ -1808,6 +1906,37 @@ const EVENT_STRINGS: Record<string, EventStrings> = {
     micGrantDenied:
       "माइक्रोफ़ोन अनुपलब्ध। ब्राउज़र अनुमतियाँ जाँचें और पुनः प्रयास करें।",
     eventShareHint: "QR स्कैन करें या लिंक साझा करें: दर्शक श्रोता के रूप में शामिल होते हैं।",
+  },
+
+  hr: {
+    modeEvent: "Događaj",
+    eventCreateHint: "Vi ste izlagač: vi govorite, publika sluša prevedeno.",
+    roleSpeaker: "Izlagač",
+    roleAudience: "Publika",
+    audienceJoinTitle: "Pridružujete se kao publika",
+    audienceJoinHint: "Slušat ćete izlagača prevedenog na vaš jezik.",
+    earphoneTitle: "Stavite slušalice",
+    earphoneBody:
+      "Za događaj su slušalice obavezne: sprječavaju pištanje i buku u dvorani i štite prijevod.",
+    earphoneConfirm: "Nosim ih",
+    earphoneBack: "Natrag",
+    eventTitle: "Događaj",
+    badgeSpeaker: "Vi ste izlagač",
+    badgeAudience: "Slušate",
+    audienceListenHint:
+      "Mikrofon isključen. Podignite ruku da biste zatražili riječ.",
+    raiseHand: "✋ Podigni ruku",
+    lowerHand: "Spusti ruku",
+    handRaised: "Ruka podignuta — pričekajte da vam izlagač da riječ",
+    handsQueueTitle: "Zahtjevi za riječ",
+    noHands: "Nema podignutih ruku",
+    grantFloor: "Daj riječ",
+    revokeFloor: "Oduzmi riječ",
+    floorActiveWith: (name) => `${name} ima riječ`,
+    micEnabledNotice: "Mikrofon omogućen: držite pritisnuto i govorite na svom jeziku.",
+    micGrantDenied:
+      "Mikrofon nedostupan. Provjerite dopuštenja preglednika i pokušajte ponovno.",
+    eventShareHint: "Skenirajte QR ili podijelite poveznicu: publika ulazi kao slušatelji.",
   },
 };
 
